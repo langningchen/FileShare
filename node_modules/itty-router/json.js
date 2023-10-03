@@ -1,0 +1,1 @@
+"use strict";const t=((t="text/plain; charset=utf-8",e)=>(s,n)=>{const{headers:o={},...r}=n||{};return"Response"===s?.constructor.name?s:new Response(e?e(s):s,{headers:{"content-type":t,...o},...r})})("application/json; charset=utf-8",JSON.stringify);exports.json=t;
