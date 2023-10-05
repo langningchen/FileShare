@@ -5,7 +5,9 @@
     "deploy": "wrangler deploy",
     "start": "wrangler dev"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@octokit/rest": "^20.0.2"
+  },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20230821.0",
     "wrangler": "^3.0.0"

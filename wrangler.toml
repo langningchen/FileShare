@@ -1,3 +1,8 @@
-name = "FileShare"
+name = "file-share"
 main = "Source/index.ts"
 compatibility_date = "2023-10-02"
+
+[[d1_databases]]
+binding = "FileShareBufferDatabase"
+database_name = "file-share-buffer"
+database_id = "38d93339-c5d0-4624-bbd6-58c28acddfd5"
