@@ -43,59 +43,24 @@ const Github = new Octokit({
 export default {
 	async fetch(RequestData: Request, EnvironmentData: Environment, Context): Promise<Response> {
 		try {
-			let Database = EnvironmentData.FileShareBufferDatabase;
-			let RequestPath = new URL(RequestData.url).pathname;
-			if (RequestPath === "/" && RequestData.method === "GET") {
-				return new Response(Template, {
-					headers: {
-						"content-type": "text/html;charset=UTF-8",
-					},
-				});
-			}
-			if (RequestPath === "/DownloadFile" && RequestData.method === "GET") {
-				let RequestQuery = new URL(RequestData.url).searchParams;
-				let Filename: string = RequestQuery.get("Filename") || "";
-				let GithubResponse = await Github.repos.getContent({
-					owner: GithubOwner,
-					repo: GithubRepo,
-					path: Filename,
-				});
-				if (GithubResponse["data"]["message"] !== undefined) {
-					return new Response(GithubResponse["data"]["message"], {
+			const Database: D1Database = EnvironmentData.FileShareBufferDatabase;
+			const RequestPath: string = new URL(RequestData.url).pathname;
+			const ResponseJSONData: ResponseJSON | Response = await (async (): Promise<ResponseJSON | Response> => {
+				let RequestBody: JSON;
+				try {
+					RequestBody = await RequestData.json();
+				} catch (ParseError) {
+					RequestBody = JSON.parse("{}");
+				}
+				if (RequestPath === "/" && RequestData.method === "GET") {
+					return new Response(Template, {
 						headers: {
-							"content-type": "text/plain;charset=UTF-8",
+							"content-type": "text/html;charset=UTF-8",
 						},
 					});
 				}
-				if (GithubResponse["data"]["content"] === undefined) {
-					return new Response("File not found", {
-						headers: {
-							"content-type": "text/plain;charset=UTF-8",
-						},
-					});
-				}
-				let FileData = GithubResponse["data"]["content"];
-				let FileDataString = atob(FileData);
-				let FileDataUint8Array = new Uint8Array(FileDataString.length);
-				for (let Index = 0; Index < FileDataString.length; Index++) {
-					FileDataUint8Array[Index] = FileDataString.charCodeAt(Index);
-				}
-				return new Response(FileDataUint8Array, {
-					headers: {
-						"content-type": "application/octet-stream",
-						"content-disposition": "attachment; filename=" + Filename,
-					},
-				});
-			}
-			let ResponseJSONData: ResponseJSON = await (async (): Promise<ResponseJSON> => {
-				if (RequestPath === "/UploadFileStart" && RequestData.method === "POST") {
-					let RequestBody: JSON;
-					try {
-						RequestBody = await RequestData.json();
-					} catch (ParseError) {
-						return new ResponseJSON(false, "Request body is not a valid JSON", {});
-					}
-					let SQLResult =
+				else if (RequestPath === "/UploadFileStart" && RequestData.method === "POST") {
+					const SQLResult =
 						await Database.prepare("INSERT INTO file_list (file_name) VALUES (?)")
 							.bind(RequestBody["Filename"])
 							.all();
@@ -104,42 +69,39 @@ export default {
 					});
 				}
 				else if (RequestPath === "/UploadFileChunk" && RequestData.method === "POST") {
-					let RequestBody: JSON;
-					try {
-						RequestBody = await RequestData.json();
-					} catch (ParseError) {
-						return new ResponseJSON(false, "Request body is not a valid JSON", {});
-					}
-					let SQLResult =
+					/**
+					 * Because of Cloudflare D1 free has a 1MB string size limit,
+					 * so we have to split the file chunks into 1MB.
+					 * But we have to make sure that the data is small enough to be stored in the database,
+					 * so we set the limit to 512KB.
+					 * https://developers.cloudflare.com/d1/platform/limits/
+					 */
+					const SizeLimit = 1024 * 512;
+					for (let i = 0; i < RequestBody["Content"].length; i += SizeLimit) {
 						await Database.prepare("INSERT INTO file_chunk (file_id, content) VALUES (?, ?)")
-							.bind(RequestBody["FileID"], RequestBody["Content"])
+							.bind(RequestBody["FileID"], RequestBody["Content"].substr(i, SizeLimit))
 							.all();
+					}
 					return new ResponseJSON(true, "", {});
 				}
 				else if (RequestPath === "/UploadFileEnd" && RequestData.method === "POST") {
-					let RequestBody: JSON;
-					try {
-						RequestBody = await RequestData.json();
-					} catch (ParseError) {
-						return new ResponseJSON(false, "Request body is not a valid JSON", {});
-					}
-					let SQLResult =
+					const SelectSQLResult =
 						await Database.prepare("SELECT file_name FROM file_list WHERE id = ?")
 							.bind(RequestBody["FileID"])
 							.all();
-					if (SQLResult.results.length === 0) {
+					if (SelectSQLResult.results.length === 0) {
 						return new ResponseJSON(false, "File not found", {});
 					}
-					let Filename: string = SQLResult.results[0]["file_name"] as string;
-					SQLResult =
+					const Filename: string = SelectSQLResult.results[0]["file_name"] as string;
+					const ContentSQLResult =
 						await Database.prepare("SELECT content FROM file_chunk WHERE file_id = ? ORDER BY id ASC")
 							.bind(RequestBody["FileID"])
 							.all();
 					let FileData = "";
-					for (let Row of SQLResult.results) {
+					for (const Row of ContentSQLResult.results) {
 						FileData += Row["content"];
 					}
-					let GithubResponse = await Github.repos.createOrUpdateFileContents({
+					const GithubResponse = await Github.repos.createOrUpdateFileContents({
 						owner: GithubOwner,
 						repo: GithubRepo,
 						path: Filename,
@@ -149,6 +111,7 @@ export default {
 					if (GithubResponse["data"]["content"] === undefined) {
 						return new ResponseJSON(false, GithubResponse["data"]["message"], {});
 					}
+					// Delete file chunks first to avoid foreign key constraint
 					await Database.prepare("DELETE FROM file_chunk WHERE file_id = ?")
 						.bind(RequestBody["FileID"])
 						.run();
@@ -158,7 +121,7 @@ export default {
 					return new ResponseJSON(true, "", {});
 				}
 				else if (RequestPath === "/GetFileList" && RequestData.method === "GET") {
-					let GithubResponse = await Github.repos.getContent({
+					const GithubResponse = await Github.repos.getContent({
 						owner: GithubOwner,
 						repo: GithubRepo,
 						path: "",
@@ -170,8 +133,8 @@ export default {
 						Filename: string;
 						FileSize: number;
 					}
-					let ResponseData: FileData[] = [];
-					for (let File of GithubResponse["data"]) {
+					const ResponseData: FileData[] = [];
+					for (const File of GithubResponse["data"]) {
 						if (File["type"] === "file") {
 							ResponseData.push({
 								Filename: File["name"],
@@ -184,13 +147,7 @@ export default {
 					});
 				}
 				else if (RequestPath === "/DeleteFile" && RequestData.method === "POST") {
-					let RequestBody;
-					try {
-						RequestBody = await RequestData.json();
-					} catch (ParseError) {
-						return new ResponseJSON(false, "Request body is not a valid JSON", {});
-					}
-					let GithubResponse = await Github.repos.getContent({
+					const GithubResponse = await Github.repos.getContent({
 						owner: GithubOwner,
 						repo: GithubRepo,
 						path: RequestBody["Filename"],
@@ -201,7 +158,7 @@ export default {
 					if (GithubResponse["data"]["sha"] === undefined) {
 						return new ResponseJSON(false, "File not found", {});
 					}
-					let DeleteGithubResponse = await Github.repos.deleteFile({
+					const DeleteGithubResponse = await Github.repos.deleteFile({
 						owner: GithubOwner,
 						repo: GithubRepo,
 						path: RequestBody["Filename"],
@@ -213,19 +170,52 @@ export default {
 					}
 					return new ResponseJSON(true, "", {});
 				}
+				else if (RequestPath === "/DownloadFile" && RequestData.method === "POST") {
+					const Filename: string = RequestBody["Filename"];
+					const GithubResponse = await Github.repos.getContent({
+						owner: GithubOwner,
+						repo: GithubRepo,
+						path: Filename,
+					});
+					if (GithubResponse["data"]["message"] !== undefined) {
+						return new ResponseJSON(false, GithubResponse["data"]["message"], {});
+					}
+					const DownloadURL: string = GithubResponse["data"]["download_url"];
+					let DownloadResponse: Response;
+					if (RequestData.headers.get("range") === null) {
+						DownloadResponse = await fetch(DownloadURL);
+					}
+					else {
+						DownloadResponse = await fetch(DownloadURL, {
+							headers: {
+								"range": RequestData.headers.get("range") as string,
+							},
+						});
+					}
+					const DownloadData = await DownloadResponse.blob();
+					return new Response(DownloadData, {
+						headers: {
+							"content-type": DownloadResponse.headers.get("content-type") as string,
+							"content-range": DownloadResponse.headers.get("content-range") as string,
+							"content-length": DownloadResponse.headers.get("content-length") as string,
+						},
+					});
+				}
 				else {
 					return new ResponseJSON(false, "Not found", {});
 				}
 			})();
+			if (ResponseJSONData instanceof Response)
+				return ResponseJSONData;
 			return new Response(JSON.stringify(ResponseJSONData), {
 				headers: {
-					"content-type": "text/plain;charset=UTF-8",
+					"content-type": "application/json;charset=UTF-8",
 				},
 			});
 		} catch (Error) {
 			return new Response(JSON.stringify(new ResponseJSON(false, Error.message, {})), {
 				headers: {
-					"content-type": "text/plain;charset=UTF-8",
+					"content-type": "application/json;charset=UTF-8",
 				},
 			});
 		}

@@ -8,156 +8,296 @@
 </head>
 
 <body>
-    <div class="container mt-3">
-        <div class="row">
-            <div class="col-12">
-                <div class="mb-3 input-group">
-                    <input type="file" class="form-control" id="FileToUpload">
-                    <button class="btn btn-primary" id="UploadButton">上传</button>
-                </div>
-                <div class="progress mb-3">
-                    <div class="progress-bar progress-bar-striped progress-bar-animated" id="UploadProgress"
-                        style="width: 0%;"></div>
+    <div class="container mt-3 accordion">
+        <div class="accordion-item">
+            <h2 class="accordion-header">
+                <button class="accordion-button" data-bs-toggle="collapse" data-bs-target="#UploadAccordion">
+                    上传文件
+                </button>
+            </h2>
+            <div id="UploadAccordion" class="accordion-collapse collapse show">
+                <div class="accordion-body">
+                    <div class="mb-3 input-group">
+                        <input type="file" class="form-control" id="FileToUpload">
+                        <button class="btn btn-primary" id="UploadButton">上传</button>
+                    </div>
+                    <div class="progress mb-3">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" id="UploadProgress"
+                            style="width: 0%;"></div>
+                    </div>
                 </div>
             </div>
         </div>
-        <div class="row">
-            <table class="table table-bordered" id="FileList">
-                <thead>
-                    <tr>
-                        <th>文件名</th>
-                        <th>文件大小</th>
-                        <th>操作</th>
-                    </tr>
-                </thead>
-                <tbody>
-                </tbody>
-            </table>
+        <div class="accordion-item">
+            <h2 class="accordion-header">
+                <button class="accordion-button" data-bs-toggle="collapse" data-bs-target="#FileAccordion">
+                    文件列表
+                </button>
+            </h2>
+            <div id="FileAccordion" class="accordion-collapse collapse show">
+                <div class="accordion-body">
+                    <button class="btn btn-primary mb-3" id="RefreshButton">刷新</button>
+                    <div class="progress mb-3">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" id="DownloadProgress"
+                            style="width: 0%;"></div>
+                    </div>
+                    <div class="d-flex justify-content-center">
+                        <div class="spinner-border" role="status" id="FileListLoading" style="display: none;"></div>
+                    </div>
+                    <table class="table table-bordered" id="FileList">
+                        <thead>
+                            <tr>
+                                <th>文件名</th>
+                                <th>文件大小</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
-        <script>
-            const FetchJson = async (Url, Option = {}) => {
-                let ResponseData = await fetch(Url, Option);
-                ResponseData = await ResponseData.json();
-                if (ResponseData.Succeeded == false) {
-                    alert(ResponseData.Message);
-                }
-                return ResponseData.Data;
-            };
-            const RefreshFileList = () => {
-                FetchJson("GetFileList").then(ResponseData => {
-                    let FileList = document.getElementById("FileList");
-                    FileList.getElementsByTagName("tbody")[0].innerHTML = "";
-                    ResponseData["FileList"].forEach((FileItem) => {
-                        let FileRow = document.createElement("tr");
-                        let FilenameCell = document.createElement("td");
-                        FilenameCell.innerText = FileItem.Filename;
-                        FileRow.appendChild(FilenameCell);
-                        let FileSizeCell = document.createElement("td");
-                        if (FileItem.FileSize < 1024)
-                            FileSizeCell.innerText = FileItem.FileSize + "B";
-                        else if (FileItem.FileSize < 1024 * 1024)
-                            FileSizeCell.innerText = (FileItem.FileSize / 1024).toFixed(2) + "KB";
-                        else if (FileItem.FileSize < 1024 * 1024 * 1024)
-                            FileSizeCell.innerText = (FileItem.FileSize / 1024 / 1024).toFixed(2) + "MB";
-                        else
-                            FileSizeCell.innerText = (FileItem.FileSize / 1024 / 1024 / 1024).toFixed(2) + "GB";
-                        FileRow.appendChild(FileSizeCell);
-                        let OperationCell = document.createElement("td");
-                        let DownloadButton = document.createElement("button");
-                        DownloadButton.classList.add("btn", "btn-primary", "me-2");
-                        DownloadButton.innerText = "下载";
-                        DownloadButton.addEventListener("click", () => {
-                            window.open("DownloadFile?Filename=" + FileItem.Filename);
-                        });
-                        OperationCell.appendChild(DownloadButton);
-                        let DeleteButton = document.createElement("button");
-                        DeleteButton.classList.add("btn", "btn-danger");
-                        DeleteButton.innerText = "删除";
-                        DeleteButton.addEventListener("click", async () => {
-                            FetchJson("DeleteFile", {
-                                method: "POST",
-                                headers: {
-                                    "Content-Type": "application/json"
-                                },
-                                body: JSON.stringify({
-                                    "Filename": FileItem.Filename
-                                }),
-                            }).then(() => {
-                                RefreshFileList();
-                            });
-                        });
-                        OperationCell.appendChild(DeleteButton);
-                        FileRow.appendChild(OperationCell);
-                        FileList.getElementsByTagName("tbody")[0].appendChild(FileRow);
-                    });
-                });
-            };
-            const SetUndefined = (ProgressBar) => {
-                ProgressBar.classList.remove("progress-bar-striped");
-                ProgressBar.classList.remove("progress-bar-animated");
-                ProgressBar.style.width = "0%";
-                ProgressBar.innerText = "";
-            };
-            const SetInvalid = (ProgressBar) => {
-                ProgressBar.classList.add("progress-bar-striped");
-                ProgressBar.classList.add("progress-bar-animated");
-                ProgressBar.style.width = "100%";
-                ProgressBar.innerText = "";
-            };
-            const SetValue = (ProgressBar, Value) => {
-                ProgressBar.classList.remove("progress-bar-striped");
-                ProgressBar.classList.remove("progress-bar-animated");
-                ProgressBar.style.width = Value + "%";
-                ProgressBar.innerText = Value.toFixed(2) + "%";
-            };
-            document.getElementById("UploadButton").addEventListener("click", () => {
-                var UploadFile = document.getElementById("FileToUpload").files[0];
-                var Reader = new FileReader();
-                Reader.readAsDataURL(UploadFile);
-                Reader.onload = async () => {
-                    let Base64Data = Reader.result.split(",")[1];
-                    let ChunkSize = 1024 * 512;
-                    let ChunkCount = Math.ceil(Base64Data.length / ChunkSize);
-                    let UploadProgress = document.getElementById("UploadProgress");
-                    SetInvalid(UploadProgress);
-                    let FileID = (await FetchJson("UploadFileStart", {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json"
-                        },
-                        body: JSON.stringify({
-                            "Filename": UploadFile.name
-                        }),
-                    }))["FileID"];
-                    for (let i = 0; i < ChunkCount; i++) {
-                        SetValue(UploadProgress, (i + 1) / ChunkCount * 100);
-                        await FetchJson("UploadFileChunk", {
+        <div class="accordion-item">
+            <h2 class="accordion-header">
+                <button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#LogAccordion">
+                    系统日志
+                </button>
+            </h2>
+            <div id="LogAccordion" class="accordion-collapse collapse">
+                <div class="accordion-body">
+                    <select class="form-select mb-3" id="LogLevel">
+                        <option value="0" selected>信息+警告+错误</option>
+                        <option value="1">警告+错误</option>
+                        <option value="2">错误</option>
+                    </select>
+                    <button class="btn btn-primary mb-3" id="ClearLogButton">清空日志</button>
+                    <ol class="list-group" id="LogContainer"></ol>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        let LogLevel = 0;
+        const WriteLog = (Message, Type) => {
+            const LogContainer = document.getElementById("LogContainer");
+            const LogItem = document.createElement("li");
+            LogItem.classList.add("list-group-item", "list-group-item-" + Type);
+            LogItem.innerText = Message;
+            LogContainer.appendChild(LogItem);
+        };
+        console.log = console.info = console.debug = (Message) => {
+            if (LogLevel <= 0)
+                WriteLog(Message, "info");
+        };
+        console.warn = (Message) => {
+            if (LogLevel <= 1)
+                WriteLog(Message, "warning");
+        };
+        console.error = (Message) => {
+            WriteLog(Message, "danger");
+        };
+        document.getElementById("LogLevel").addEventListener("change", () => {
+            console.log("LogLevel changed to " + document.getElementById("LogLevel").value);
+            LogLevel = parseInt(document.getElementById("LogLevel").value);
+        });
+        document.getElementById("ClearLogButton").addEventListener("click", () => {
+            document.getElementById("LogContainer").innerHTML = "";
+            console.log("Log cleared");
+        });
+        const FetchJson = async (Url, Option = {}) => {
+            console.log("Requesting " + Url + " with option " + JSON.stringify(Option) + "...");
+            let ResponseData = await fetch(Url, Option);
+            ResponseData = await ResponseData.json();
+            if (ResponseData.Succeeded == false) {
+                console.error(ResponseData.Message);
+            }
+            console.log("Response data: " + JSON.stringify(ResponseData.Data));
+            return ResponseData.Data;
+        };
+        const RefreshFileList = async () => {
+            console.log("Refreshing file list...");
+            const FileList = document.getElementById("FileList");
+            const FileListLoading = document.getElementById("FileListLoading");
+            FileList.style.display = "none";
+            FileListLoading.style.display = "";
+            FileList.getElementsByTagName("tbody")[0].innerHTML = "";
+            const ResponseData = await FetchJson("GetFileList");
+            FileList.style.display = "";
+            FileListLoading.style.display = "none";
+            ResponseData["FileList"].forEach((FileItem) => {
+                const FileRow = document.createElement("tr");
+                const FilenameCell = document.createElement("td");
+                FilenameCell.innerText = FileItem.Filename;
+                FileRow.appendChild(FilenameCell);
+                const FileSizeCell = document.createElement("td");
+                if (FileItem.FileSize < 1024)
+                    FileSizeCell.innerText = FileItem.FileSize + "B";
+                else if (FileItem.FileSize < 1024 * 1024)
+                    FileSizeCell.innerText = (FileItem.FileSize / 1024).toFixed(2) + "KB";
+                else if (FileItem.FileSize < 1024 * 1024 * 1024)
+                    FileSizeCell.innerText = (FileItem.FileSize / 1024 / 1024).toFixed(2) + "MB";
+                else
+                    FileSizeCell.innerText = (FileItem.FileSize / 1024 / 1024 / 1024).toFixed(2) + "GB";
+                FileRow.appendChild(FileSizeCell);
+                const OperationCell = document.createElement("td");
+                const DownloadButton = document.createElement("button");
+                DownloadButton.classList.add("btn", "btn-primary", "me-2");
+                DownloadButton.innerText = "下载";
+                DownloadButton.addEventListener("click", async () => {
+                    const DownloadProgress = document.getElementById("DownloadProgress");
+                    let FileData = new Blob;
+                    let ChunkIndex = 0;
+                    while (1) {
+                        console.warn("Downloading chunk " + ChunkIndex + "...");
+                        SetProgressBarValue(DownloadProgress, ChunkIndex / Math.ceil(FileItem.FileSize / ChunkSize) * 100);
+                        const ChunkStart = ChunkIndex * ChunkSize;
+                        const ChunkEnd = Math.min((ChunkIndex + 1) * ChunkSize - 1, FileItem.FileSize - 1);
+                        let ResponseData = await fetch("DownloadFile", {
                             method: "POST",
                             headers: {
-                                "Content-Type": "application/json"
+                                "Content-Type": "application/json",
+                                "Range": "bytes=" + ChunkStart + "-" + ChunkEnd,
                             },
                             body: JSON.stringify({
-                                "FileID": FileID,
-                                "Content": Base64Data.substr(i * ChunkSize, ChunkSize)
+                                "Filename": FileItem.Filename,
                             }),
                         });
+                        ResponseData = await ResponseData.blob();
+                        FileData = new Blob([FileData, ResponseData]);
+                        if (ChunkEnd == FileItem.FileSize - 1)
+                            break;
+                        ChunkIndex++;
                     }
-                    SetInvalid(UploadProgress);
-                    await FetchJson("UploadFileEnd", {
+                    SetProgressBarInvalid(DownloadProgress);
+                    const DownloadLink = URL.createObjectURL(FileData);
+                    const DownloadLinkElement = document.createElement("a");
+                    DownloadLinkElement.href = DownloadLink;
+                    DownloadLinkElement.download = FileItem.Filename;
+                    DownloadLinkElement.click();
+                    SetProgressBarUndefined(DownloadProgress);
+                });
+                OperationCell.appendChild(DownloadButton);
+                const DeleteButton = document.createElement("button");
+                DeleteButton.classList.add("btn", "btn-danger");
+                DeleteButton.innerText = "删除";
+                DeleteButton.addEventListener("click", async () => {
+                    console.warn("Deleting file " + FileItem.Filename + "...");
+                    FetchJson("DeleteFile", {
                         method: "POST",
                         headers: {
                             "Content-Type": "application/json"
                         },
                         body: JSON.stringify({
-                            "FileID": FileID
+                            "Filename": FileItem.Filename
+                        }),
+                    }).then(() => {
+                        RefreshFileList();
+                    });
+                });
+                OperationCell.appendChild(DeleteButton);
+                FileRow.appendChild(OperationCell);
+                FileList.getElementsByTagName("tbody")[0].appendChild(FileRow);
+            });
+        };
+        const SetProgressBarUndefined = (ProgressBar) => {
+            console.log("Setting progress bar " + ProgressBar.id + " to undefined");
+            ProgressBar.classList.remove("progress-bar-striped");
+            ProgressBar.classList.remove("progress-bar-animated");
+            ProgressBar.style.width = "0%";
+            ProgressBar.innerText = "";
+        };
+        const SetProgressBarInvalid = (ProgressBar) => {
+            console.log("Setting progress bar " + ProgressBar.id + " to invalid");
+            ProgressBar.classList.add("progress-bar-striped");
+            ProgressBar.classList.add("progress-bar-animated");
+            ProgressBar.style.width = "100%";
+            ProgressBar.innerText = "";
+        };
+        const SetProgressBarValue = (ProgressBar, Value) => {
+            console.log("Setting progress bar " + ProgressBar.id + " to " + Value);
+            ProgressBar.classList.remove("progress-bar-striped");
+            ProgressBar.classList.remove("progress-bar-animated");
+            ProgressBar.style.width = Value + "%";
+            ProgressBar.innerText = Value.toFixed(2) + "%";
+        };
+        const ShowSpinner = (Button) => {
+            console.log("Showing spinner on button " + Button.id);
+            let Spinner = document.createElement("span");
+            Spinner.classList.add("spinner-border", "spinner-border-sm");
+            Button.appendChild(Spinner);
+            Button.disabled = true;
+        };
+        const HideSpinner = (Button) => {
+            console.log("Hiding spinner on button " + Button.id);
+            Button.removeChild(Button.lastChild);
+            Button.disabled = false;
+        };
+        const ChunkSize = 1024 * 1024 * 4;
+        document.getElementById("UploadButton").addEventListener("click", () => {
+            console.log("UploadButton clicked");
+            ShowSpinner(document.getElementById("UploadButton"));
+            const UploadFile = document.getElementById("FileToUpload").files[0];
+            const Reader = new FileReader();
+            Reader.readAsDataURL(UploadFile);
+            Reader.onload = async () => {
+                const UploadProgress = document.getElementById("UploadProgress");
+                console.log("File read");
+                const Base64Data = Reader.result.split(",")[1];
+                const ChunkCount = Math.ceil(Base64Data.length / ChunkSize);
+                console.log("ChunkCount: " + ChunkCount);
+                console.log("ChunkSize: " + ChunkSize);
+                console.log("Base64Data length: " + Base64Data.length);
+                console.log("Uploading file start");
+                SetProgressBarInvalid(UploadProgress);
+                const FileID = (await FetchJson("UploadFileStart", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        "Filename": UploadFile.name
+                    }),
+                }))["FileID"];
+                console.log("FileID: " + FileID);
+                for (const i = 0; i < ChunkCount; i++) {
+                    console.warn("Uploading chunk " + i + "...");
+                    SetProgressBarValue(UploadProgress, (i + 1) / ChunkCount * 100);
+                    await FetchJson("UploadFileChunk", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify({
+                            "FileID": FileID,
+                            "Content": Base64Data.substr(i * ChunkSize, ChunkSize)
                         }),
                     });
-                    SetUndefined(UploadProgress);
-                    RefreshFileList();
                 }
-            });
-            RefreshFileList();
-        </script>
+                console.log("Uploading file end");
+                SetProgressBarInvalid(UploadProgress);
+                await FetchJson("UploadFileEnd", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        "FileID": FileID
+                    }),
+                });
+                SetProgressBarUndefined(UploadProgress);
+                HideSpinner(document.getElementById("UploadButton"));
+                RefreshFileList();
+            }
+        });
+        document.getElementById("RefreshButton").addEventListener("click", async () => {
+            console.log("RefreshButton clicked");
+            ShowSpinner(document.getElementById("RefreshButton"));
+            await RefreshFileList();
+            HideSpinner(document.getElementById("RefreshButton"));
+        });
+        RefreshFileList();
+    </script>
 </body>
 
 </html>
