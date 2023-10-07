@@ -105,7 +105,7 @@ export default {
 						owner: GithubOwner,
 						repo: GithubRepo,
 						path: Filename,
-						message: "Upload " + RequestBody["Filename"],
+						message: "Upload " + Filename,
 						content: FileData,
 					});
 					if (GithubResponse["data"]["content"] === undefined) {
