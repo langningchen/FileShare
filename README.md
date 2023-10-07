@@ -35,7 +35,7 @@ database_id = "..." // The ID of the database you created
 
 9. Run `wrangler d1 execute <name> --file=Source/Initial.sql` to initialize the database
 10. Run `npm install` to install dependencies
-11. Run `wrangler publish` to publish your project
+11. Run `wrangler deploy` to publish your project
 12. :tada: Your file share is now live!
 
 ## License

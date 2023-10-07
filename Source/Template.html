@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html data-bs-theme="dark">
 
 <head>
     <link href="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.3.1/css/bootstrap.css" rel="stylesheet">
@@ -8,71 +8,107 @@
 </head>
 
 <body>
-    <div class="container mt-3 accordion">
-        <div class="accordion-item">
-            <h2 class="accordion-header">
-                <button class="accordion-button" data-bs-toggle="collapse" data-bs-target="#UploadAccordion">
-                    上传文件
-                </button>
-            </h2>
-            <div id="UploadAccordion" class="accordion-collapse collapse show">
-                <div class="accordion-body">
-                    <div class="mb-3 input-group">
-                        <input type="file" class="form-control" id="FileToUpload">
-                        <button class="btn btn-primary" id="UploadButton">上传</button>
-                    </div>
-                    <div class="progress mb-3">
-                        <div class="progress-bar progress-bar-striped progress-bar-animated" id="UploadProgress"
-                            style="width: 0%;"></div>
+    <div class="container mt-3">
+        <h3>文件上传示例</h3>
+        <hr>
+        <p>
+            本项目由
+            <a href="https://github.com/langningchen">Langning Chen</a>
+            制作，仅供学习交流使用，在
+            <a href="https://github.com/langningchen/FileShare">GitHub</a>
+            上开源，并遵守
+            <a href="https://github.com/langningchen/FileShare/blob/main/LICENSE">GPL-3.0</a>
+            协议。
+        </p>
+        <div class="accordion">
+            <div class="accordion-item">
+                <h2 class="accordion-header">
+                    <button class="accordion-button" data-bs-toggle="collapse" data-bs-target="#UploadAccordion">
+                        上传文件
+                    </button>
+                </h2>
+                <div id="UploadAccordion" class="accordion-collapse collapse show">
+                    <div class="accordion-body">
+                        <div class="mb-3 input-group">
+                            <input type="file" class="form-control" id="FileToUpload">
+                            <button class="btn btn-primary" id="UploadButton">上传</button>
+                        </div>
+                        <div class="progress mb-3">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" id="UploadProgress"
+                                style="width: 0%;"></div>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
-        <div class="accordion-item">
-            <h2 class="accordion-header">
-                <button class="accordion-button" data-bs-toggle="collapse" data-bs-target="#FileAccordion">
-                    文件列表
-                </button>
-            </h2>
-            <div id="FileAccordion" class="accordion-collapse collapse show">
-                <div class="accordion-body">
-                    <button class="btn btn-primary mb-3" id="RefreshButton">刷新</button>
-                    <div class="progress mb-3">
-                        <div class="progress-bar progress-bar-striped progress-bar-animated" id="DownloadProgress"
-                            style="width: 0%;"></div>
+            <div class="accordion-item">
+                <h2 class="accordion-header">
+                    <button class="accordion-button" data-bs-toggle="collapse" data-bs-target="#FileAccordion">
+                        文件列表
+                    </button>
+                </h2>
+                <div id="FileAccordion" class="accordion-collapse collapse show">
+                    <div class="accordion-body">
+                        <button class="btn btn-primary mb-3" id="RefreshButton">刷新</button>
+                        <div class="progress mb-3">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" id="DownloadProgress"
+                                style="width: 0%;"></div>
+                        </div>
+                        <div class="d-flex justify-content-center">
+                            <div class="spinner-border" role="status" id="FileListLoading" style="display: none;"></div>
+                        </div>
+                        <table class="table table-bordered" id="FileList">
+                            <thead>
+                                <tr>
+                                    <th>文件名</th>
+                                    <th>文件大小</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            </tbody>
+                        </table>
                     </div>
-                    <div class="d-flex justify-content-center">
-                        <div class="spinner-border" role="status" id="FileListLoading" style="display: none;"></div>
-                    </div>
-                    <table class="table table-bordered" id="FileList">
-                        <thead>
-                            <tr>
-                                <th>文件名</th>
-                                <th>文件大小</th>
-                                <th>操作</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                        </tbody>
-                    </table>
                 </div>
             </div>
-        </div>
-        <div class="accordion-item">
-            <h2 class="accordion-header">
-                <button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#LogAccordion">
-                    系统日志
-                </button>
-            </h2>
-            <div id="LogAccordion" class="accordion-collapse collapse">
-                <div class="accordion-body">
-                    <select class="form-select mb-3" id="LogLevel">
-                        <option value="0" selected>信息+警告+错误</option>
-                        <option value="1">警告+错误</option>
-                        <option value="2">错误</option>
-                    </select>
-                    <button class="btn btn-primary mb-3" id="ClearLogButton">清空日志</button>
-                    <ol class="list-group" id="LogContainer"></ol>
+            <div class="accordion-item">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed" data-bs-toggle="collapse"
+                        data-bs-target="#SettingsAccordion">
+                        偏好设置
+                    </button>
+                </h2>
+                <div id="SettingsAccordion" class="accordion-collapse collapse">
+                    <div class="accordion-body">
+                        <button class="btn btn-primary mb-3" id="ClearSettingsButton">清空设置</button>
+                        <div class="input-group mb-3">
+                            <span class="input-group-text">上传分块大小</span>
+                            <input type="number" class="form-control" id="UploadChunkSize">
+                            <span class="input-group-text">MB</span>
+                        </div>
+                        <div class="input-group mb-3">
+                            <span class="input-group-text">下载分块大小</span>
+                            <input type="number" class="form-control" id="DownloadChunkSize">
+                            <span class="input-group-text">MB</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="accordion-item">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#LogAccordion">
+                        系统日志
+                    </button>
+                </h2>
+                <div id="LogAccordion" class="accordion-collapse collapse">
+                    <div class="accordion-body">
+                        <select class="form-select mb-3" id="LogLevel">
+                            <option value="0" selected>信息+警告+错误</option>
+                            <option value="1">警告+错误</option>
+                            <option value="2">错误</option>
+                        </select>
+                        <button class="btn btn-primary mb-3" id="ClearLogButton">清空日志</button>
+                        <ol class="list-group" id="LogContainer"></ol>
+                    </div>
                 </div>
             </div>
         </div>
@@ -97,14 +133,7 @@
         console.error = (Message) => {
             WriteLog(Message, "danger");
         };
-        document.getElementById("LogLevel").addEventListener("change", () => {
-            console.log("LogLevel changed to " + document.getElementById("LogLevel").value);
-            LogLevel = parseInt(document.getElementById("LogLevel").value);
-        });
-        document.getElementById("ClearLogButton").addEventListener("click", () => {
-            document.getElementById("LogContainer").innerHTML = "";
-            console.log("Log cleared");
-        });
+
         const FetchJson = async (Url, Option = {}) => {
             console.log("Requesting " + Url + " with option " + JSON.stringify(Option) + "...");
             let ResponseData = await fetch(Url, Option);
@@ -115,6 +144,7 @@
             console.log("Response data: " + JSON.stringify(ResponseData.Data));
             return ResponseData.Data;
         };
+
         const RefreshFileList = async () => {
             console.log("Refreshing file list...");
             const FileList = document.getElementById("FileList");
@@ -145,14 +175,17 @@
                 DownloadButton.classList.add("btn", "btn-primary", "me-2");
                 DownloadButton.innerText = "下载";
                 DownloadButton.addEventListener("click", async () => {
+                    console.warn("Downloading file " + FileItem.Filename + "...");
+                    const DownloadChunkSize = parseInt(localStorage.getItem("DownloadChunkSize")) * 1024 * 1024;
+                    console.log("DownloadChunkSize: " + DownloadChunkSize);
                     const DownloadProgress = document.getElementById("DownloadProgress");
                     let FileData = new Blob;
                     let ChunkIndex = 0;
                     while (1) {
                         console.warn("Downloading chunk " + ChunkIndex + "...");
-                        SetProgressBarValue(DownloadProgress, ChunkIndex / Math.ceil(FileItem.FileSize / ChunkSize) * 100);
-                        const ChunkStart = ChunkIndex * ChunkSize;
-                        const ChunkEnd = Math.min((ChunkIndex + 1) * ChunkSize - 1, FileItem.FileSize - 1);
+                        SetProgressBarValue(DownloadProgress, ChunkIndex / Math.ceil(FileItem.FileSize / DownloadChunkSize) * 100);
+                        const ChunkStart = ChunkIndex * DownloadChunkSize;
+                        const ChunkEnd = Math.min((ChunkIndex + 1) * DownloadChunkSize - 1, FileItem.FileSize - 1);
                         let ResponseData = await fetch("DownloadFile", {
                             method: "POST",
                             headers: {
@@ -169,6 +202,7 @@
                             break;
                         ChunkIndex++;
                     }
+                    console.warn("Downloading file end");
                     SetProgressBarInvalid(DownloadProgress);
                     const DownloadLink = URL.createObjectURL(FileData);
                     const DownloadLinkElement = document.createElement("a");
@@ -200,6 +234,7 @@
                 FileList.getElementsByTagName("tbody")[0].appendChild(FileRow);
             });
         };
+
         const SetProgressBarUndefined = (ProgressBar) => {
             console.log("Setting progress bar " + ProgressBar.id + " to undefined");
             ProgressBar.classList.remove("progress-bar-striped");
@@ -221,6 +256,7 @@
             ProgressBar.style.width = Value + "%";
             ProgressBar.innerText = Value.toFixed(2) + "%";
         };
+
         const ShowSpinner = (Button) => {
             console.log("Showing spinner on button " + Button.id);
             let Spinner = document.createElement("span");
@@ -233,9 +269,56 @@
             Button.removeChild(Button.lastChild);
             Button.disabled = false;
         };
-        const ChunkSize = 1024 * 1024 * 4;
+
+        document.getElementById("ClearSettingsButton").addEventListener("click", () => {
+            console.log("ClearSettingsButton clicked");
+            localStorage.clear();
+            console.log("Settings cleared");
+            location.reload();
+        });
+
+        document.getElementById("UploadChunkSize").addEventListener("blur", () => {
+            const UploadChunkSize = parseInt(document.getElementById("UploadChunkSize").value);
+            console.log("UploadChunkSize changed to " + UploadChunkSize + "MB");
+            localStorage.setItem("UploadChunkSize", UploadChunkSize);
+        });
+
+        document.getElementById("DownloadChunkSize").addEventListener("blur", () => {
+            const DownloadChunkSize = parseInt(document.getElementById("DownloadChunkSize").value);
+            console.log("DownloadChunkSize changed to " + DownloadChunkSize + "MB");
+            localStorage.setItem("DownloadChunkSize", DownloadChunkSize);
+        });
+
+        document.getElementById("LogLevel").addEventListener("change", () => {
+            console.log("LogLevel changed to " + document.getElementById("LogLevel").value);
+            LogLevel = parseInt(document.getElementById("LogLevel").value);
+            const LogContainer = document.getElementById("LogContainer");
+            for (let i = 0; i < LogContainer.children.length; i++) {
+                const LogItem = LogContainer.children[i];
+                if (LogLevel == 0 && LogItem.classList.contains("list-group-item-info") == false) {
+                    LogContainer.removeChild(LogItem);
+                    i--;
+                }
+                else if (LogLevel == 1 && LogItem.classList.contains("list-group-item-warning") == false) {
+                    LogContainer.removeChild(LogItem);
+                    i--;
+                }
+                else if (LogLevel == 2 && LogItem.classList.contains("list-group-item-danger") == false) {
+                    LogContainer.removeChild(LogItem);
+                    i--;
+                }
+            }
+        });
+
+        document.getElementById("ClearLogButton").addEventListener("click", () => {
+            document.getElementById("LogContainer").innerHTML = "";
+            console.log("Log cleared");
+        });
+
         document.getElementById("UploadButton").addEventListener("click", () => {
             console.log("UploadButton clicked");
+            const UploadChunkSize = parseInt(localStorage.getItem("UploadChunkSize")) * 1024 * 1024;
+            console.log("UploadChunkSize: " + UploadChunkSize);
             ShowSpinner(document.getElementById("UploadButton"));
             const UploadFile = document.getElementById("FileToUpload").files[0];
             const Reader = new FileReader();
@@ -244,9 +327,9 @@
                 const UploadProgress = document.getElementById("UploadProgress");
                 console.log("File read");
                 const Base64Data = Reader.result.split(",")[1];
-                const ChunkCount = Math.ceil(Base64Data.length / ChunkSize);
+                const ChunkCount = Math.ceil(Base64Data.length / UploadChunkSize);
                 console.log("ChunkCount: " + ChunkCount);
-                console.log("ChunkSize: " + ChunkSize);
+                console.log("ChunkSize: " + UploadChunkSize);
                 console.log("Base64Data length: " + Base64Data.length);
                 console.log("Uploading file start");
                 SetProgressBarInvalid(UploadProgress);
@@ -260,7 +343,7 @@
                     }),
                 }))["FileID"];
                 console.log("FileID: " + FileID);
-                for (const i = 0; i < ChunkCount; i++) {
+                for (let i = 0; i < ChunkCount; i++) {
                     console.warn("Uploading chunk " + i + "...");
                     SetProgressBarValue(UploadProgress, (i + 1) / ChunkCount * 100);
                     await FetchJson("UploadFileChunk", {
@@ -270,11 +353,11 @@
                         },
                         body: JSON.stringify({
                             "FileID": FileID,
-                            "Content": Base64Data.substr(i * ChunkSize, ChunkSize)
+                            "Content": Base64Data.substr(i * UploadChunkSize, UploadChunkSize)
                         }),
                     });
                 }
-                console.log("Uploading file end");
+                console.warn("Uploading file end");
                 SetProgressBarInvalid(UploadProgress);
                 await FetchJson("UploadFileEnd", {
                     method: "POST",
@@ -290,12 +373,24 @@
                 RefreshFileList();
             }
         });
+
         document.getElementById("RefreshButton").addEventListener("click", async () => {
             console.log("RefreshButton clicked");
             ShowSpinner(document.getElementById("RefreshButton"));
             await RefreshFileList();
             HideSpinner(document.getElementById("RefreshButton"));
         });
+
+        if (localStorage.getItem("UploadChunkSize") === null) {
+            console.warn("UploadChunkSize not found, using default value 1MB");
+            localStorage.setItem("UploadChunkSize", 1);
+        }
+        if (localStorage.getItem("DownloadChunkSize") === null) {
+            console.warn("DownloadChunkSize not found, using default value 4MB");
+            localStorage.setItem("DownloadChunkSize", 4);
+        }
+        document.getElementById("UploadChunkSize").value = localStorage.getItem("UploadChunkSize");
+        document.getElementById("DownloadChunkSize").value = localStorage.getItem("DownloadChunkSize");
         RefreshFileList();
     </script>
 </body>
