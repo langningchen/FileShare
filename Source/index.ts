@@ -54,14 +54,19 @@ export default {
 				}
 
 				// Check if the database exists
-				let TablesData = await Database.prepare("SHOW TABLES").run();
-				if (TablesData.results.length === 0) {
-					await Database.prepare(`DROP TABLE IF EXISTS file_list`).run();
-					await Database.prepare(`DROP TABLE IF EXISTS file_chunk`).run();
+				try {
+					await Database.prepare(`SELECT 1 FROM file_list`).all();
+				}
+				catch (Error) {
 					await Database.prepare(`CREATE TABLE file_list (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
 	file_name TEXT NOT NULL
 )`).run();
+				}
+				try {
+					await Database.prepare(`SELECT 1 FROM file_chunk`).all();
+				}
+				catch (Error) {
 					await Database.prepare(`CREATE TABLE file_chunk (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	file_id INTEGER NOT NULL,
