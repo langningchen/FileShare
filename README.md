@@ -18,9 +18,8 @@ export const GithubRepo = "..."; // The name of the repository you created
 ```
 
 5. Make sure you have npm and Wrangler installed and configured
-6. Create a new Cloudflare Workers project by running `npm create cloudflare@latest`
-7. Create a new D1 Database by running `wrangler d1 create <name>`
-8. Upload file `wrangler.toml`:
+6. Create a new D1 Database by running `wrangler d1 create <name>`
+7. Upload file `wrangler.toml`:
 
 ```toml
 name = "..." // Your project name
@@ -36,7 +35,7 @@ database_id = "..." // The ID of the database you created
 9. Run `wrangler d1 execute <name> --file=Source/Initial.sql` to initialize the database
 10. Run `npm install` to install dependencies
 11. Run `wrangler deploy` to publish your project
-12. :tada: Your file share is now live!
+12. 🎉 Your file share is now live!
 
 ## License
 
