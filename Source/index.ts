@@ -17,12 +17,14 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 **********************************************************************/
 
 import Template from "./Template.html";
-import { GithubPAT, GithubOwner, GithubRepo } from "./Secret";
 import { Octokit } from "@octokit/rest";
 import { D1Database } from "@cloudflare/workers-types";
 
 export interface Environment {
 	FileShareBufferDatabase: D1Database;
+	GithubPAT: string;
+	GithubOwner: string;
+	GithubRepo: string;
 }
 class ResponseJSON {
 	Succeeded: boolean;
@@ -35,17 +37,43 @@ class ResponseJSON {
 	}
 }
 
-const Github = new Octokit({
-	auth: GithubPAT,
-	userAgent: "Cloudflare Worker",
-});
-
 export default {
 	async fetch(RequestData: Request, EnvironmentData: Environment, Context): Promise<Response> {
 		try {
 			const Database: D1Database = EnvironmentData.FileShareBufferDatabase;
 			const RequestPath: string = new URL(RequestData.url).pathname;
 			const ResponseJSONData: ResponseJSON | Response = await (async (): Promise<ResponseJSON | Response> => {
+				if (EnvironmentData.GithubPAT === undefined ||
+					EnvironmentData.GithubOwner === undefined ||
+					EnvironmentData.GithubRepo === undefined) {
+					return new Response(JSON.stringify(new ResponseJSON(false, "Please set the environment variables", {})), {
+						headers: {
+							"content-type": "application/json;charset=UTF-8",
+						},
+					});
+				}
+
+				// Check if the database exists
+				let TablesData = await Database.prepare("SHOW TABLES").run();
+				if (TablesData.results.length === 0) {
+					await Database.prepare(`DROP TABLE IF EXISTS file_list`).run();
+					await Database.prepare(`DROP TABLE IF EXISTS file_chunk`).run();
+					await Database.prepare(`CREATE TABLE file_list (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+	file_name TEXT NOT NULL
+)`).run();
+					await Database.prepare(`CREATE TABLE file_chunk (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	file_id INTEGER NOT NULL,
+	content TEXT NOT NULL,
+	FOREIGN KEY (file_id) REFERENCES file_list(id)
+)`).run();
+				}
+
+				const Github = new Octokit({
+					auth: EnvironmentData.GithubPAT,
+					userAgent: "Cloudflare Worker",
+				});
 				let RequestBody: JSON;
 				try {
 					RequestBody = await RequestData.json();
@@ -102,8 +130,8 @@ export default {
 						FileData += Row["content"];
 					}
 					const GithubResponse = await Github.repos.createOrUpdateFileContents({
-						owner: GithubOwner,
-						repo: GithubRepo,
+						owner: EnvironmentData.GithubOwner,
+						repo: EnvironmentData.GithubRepo,
 						path: Filename,
 						message: "Upload " + Filename,
 						content: FileData,
@@ -122,8 +150,8 @@ export default {
 				}
 				else if (RequestPath === "/GetFileList" && RequestData.method === "GET") {
 					const GithubResponse = await Github.repos.getContent({
-						owner: GithubOwner,
-						repo: GithubRepo,
+						owner: EnvironmentData.GithubOwner,
+						repo: EnvironmentData.GithubRepo,
 						path: "",
 					});
 					if (GithubResponse["data"]["message"] !== undefined) {
@@ -148,8 +176,8 @@ export default {
 				}
 				else if (RequestPath === "/DeleteFile" && RequestData.method === "POST") {
 					const GithubResponse = await Github.repos.getContent({
-						owner: GithubOwner,
-						repo: GithubRepo,
+						owner: EnvironmentData.GithubOwner,
+						repo: EnvironmentData.GithubRepo,
 						path: RequestBody["Filename"],
 					});
 					if (GithubResponse["data"]["message"] !== undefined) {
@@ -159,8 +187,8 @@ export default {
 						return new ResponseJSON(false, "File not found", {});
 					}
 					const DeleteGithubResponse = await Github.repos.deleteFile({
-						owner: GithubOwner,
-						repo: GithubRepo,
+						owner: EnvironmentData.GithubOwner,
+						repo: EnvironmentData.GithubRepo,
 						path: RequestBody["Filename"],
 						message: "Delete " + RequestBody["Filename"],
 						sha: GithubResponse["data"]["sha"],
@@ -173,8 +201,8 @@ export default {
 				else if (RequestPath === "/DownloadFile" && RequestData.method === "POST") {
 					const Filename: string = RequestBody["Filename"];
 					const GithubResponse = await Github.repos.getContent({
-						owner: GithubOwner,
-						repo: GithubRepo,
+						owner: EnvironmentData.GithubOwner,
+						repo: EnvironmentData.GithubRepo,
 						path: Filename,
 					});
 					if (GithubResponse["data"]["message"] !== undefined) {
