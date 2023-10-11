@@ -1,8 +1,8 @@
-name = "file-share"
+name = "xmoj-file-share"
 main = "Source/index.ts"
 compatibility_date = "2023-10-02"
 
 [[d1_databases]]
 binding = "FileShareBufferDatabase"
-database_name = "file-share-buffer"
-database_id = "38d93339-c5d0-4624-bbd6-58c28acddfd5"
+database_name = "xmoj-files"
+database_id = "e6ebecc6-f349-4368-9876-faa6b2376d79"
