@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html data-bs-theme="dark">
+<html>
 
 <head>
     <link href="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.3.1/css/bootstrap.css" rel="stylesheet">
@@ -90,6 +90,13 @@
                             <input type="number" class="form-control" id="DownloadChunkSize">
                             <span class="input-group-text">MB</span>
                         </div>
+                        <div class="input-group mb-3">
+                            <span class="input-group-text">深浅色设置</span>
+                            <select class="form-select" id="ThemeSelect">
+                                <option value="light">浅色</option>
+                                <option value="dark">深色</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -178,6 +185,7 @@
                     console.warn("Downloading file " + FileItem.Filename + "...");
                     const DownloadChunkSize = parseInt(localStorage.getItem("DownloadChunkSize")) * 1024 * 1024;
                     console.log("DownloadChunkSize: " + DownloadChunkSize);
+                    ShowSpinner(DownloadButton);
                     const DownloadProgress = document.getElementById("DownloadProgress");
                     let FileData = new Blob;
                     let ChunkIndex = 0;
@@ -210,6 +218,7 @@
                     DownloadLinkElement.download = FileItem.Filename;
                     DownloadLinkElement.click();
                     SetProgressBarUndefined(DownloadProgress);
+                    HideSpinner(DownloadButton);
                 });
                 OperationCell.appendChild(DownloadButton);
                 const DeleteButton = document.createElement("button");
@@ -217,6 +226,7 @@
                 DeleteButton.innerText = "删除";
                 DeleteButton.addEventListener("click", async () => {
                     console.warn("Deleting file " + FileItem.Filename + "...");
+                    ShowSpinner(DeleteButton);
                     FetchJson("DeleteFile", {
                         method: "POST",
                         headers: {
@@ -226,6 +236,7 @@
                             "Filename": FileItem.Filename
                         }),
                     }).then(() => {
+                        HideSpinner(DeleteButton);
                         RefreshFileList();
                     });
                 });
@@ -287,6 +298,13 @@
             const DownloadChunkSize = parseInt(document.getElementById("DownloadChunkSize").value);
             console.log("DownloadChunkSize changed to " + DownloadChunkSize + "MB");
             localStorage.setItem("DownloadChunkSize", DownloadChunkSize);
+        });
+
+        document.getElementById("ThemeSelect").addEventListener("change", () => {
+            const ThemeSelect = document.getElementById("ThemeSelect").value;
+            console.log("Theme changed to " + ThemeSelect);
+            document.documentElement.setAttribute("data-bs-theme", ThemeSelect);
+            localStorage.setItem("Theme", ThemeSelect);
         });
 
         document.getElementById("LogLevel").addEventListener("change", () => {
@@ -389,8 +407,14 @@
             console.warn("DownloadChunkSize not found, using default value 4MB");
             localStorage.setItem("DownloadChunkSize", 4);
         }
+        if (localStorage.getItem("Theme") === null) {
+            console.warn("Theme not found, using default value dark");
+            localStorage.setItem("Theme", "dark");
+        }
         document.getElementById("UploadChunkSize").value = localStorage.getItem("UploadChunkSize");
         document.getElementById("DownloadChunkSize").value = localStorage.getItem("DownloadChunkSize");
+        document.getElementById("ThemeSelect").value = localStorage.getItem("Theme");
+        document.documentElement.setAttribute("data-bs-theme", localStorage.getItem("Theme"));
         RefreshFileList();
     </script>
 </body>
