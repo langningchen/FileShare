@@ -26,7 +26,7 @@ database_id = "..." // The ID of the database you created, output in step 5
 
 9. Run `npm install` to install dependencies
 10. Run `wrangler deploy` to publish your project
-11. Run `wrangler secret put GithubPAT`, `wrangler secret put GithubOwner` and `wrangler secret put GithubRepo` to
+11. Run `wrangler secret put GithubPAT`, `wrangler secret put GithubOwner` and `wrangler secret put GithubRepo` to store your GitHub Personal Access Token, GitHub Owner and GitHub Repository
 12. Your file share is now live! 🎉
 
 ## License
