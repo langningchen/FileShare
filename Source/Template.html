@@ -187,29 +187,44 @@
                     console.log("DownloadChunkSize: " + DownloadChunkSize);
                     ShowSpinner(DownloadButton);
                     const DownloadProgress = document.getElementById("DownloadProgress");
+
                     let FileData = new Blob;
-                    let ChunkIndex = 0;
-                    while (1) {
-                        console.warn("Downloading chunk " + ChunkIndex + "...");
-                        SetProgressBarValue(DownloadProgress, ChunkIndex / Math.ceil(FileItem.FileSize / DownloadChunkSize) * 100);
-                        const ChunkStart = ChunkIndex * DownloadChunkSize;
-                        const ChunkEnd = Math.min((ChunkIndex + 1) * DownloadChunkSize - 1, FileItem.FileSize - 1);
-                        let ResponseData = await fetch("DownloadFile", {
+                    if (FileItem.FileSize <= 2 * DownloadChunkSize) {
+                        FileData = await (await fetch("DownloadFile", {
                             method: "POST",
                             headers: {
                                 "Content-Type": "application/json",
-                                "Range": "bytes=" + ChunkStart + "-" + ChunkEnd,
                             },
                             body: JSON.stringify({
                                 "Filename": FileItem.Filename,
                             }),
-                        });
-                        ResponseData = await ResponseData.blob();
-                        FileData = new Blob([FileData, ResponseData]);
-                        if (ChunkEnd == FileItem.FileSize - 1)
-                            break;
-                        ChunkIndex++;
+                        })).blob();
                     }
+                    else {
+                        let ChunkIndex = 0;
+                        while (1) {
+                            console.warn("Downloading chunk " + ChunkIndex + "...");
+                            SetProgressBarValue(DownloadProgress, ChunkIndex / Math.ceil(FileItem.FileSize / DownloadChunkSize) * 100);
+                            const ChunkStart = ChunkIndex * DownloadChunkSize;
+                            const ChunkEnd = Math.min((ChunkIndex + 1) * DownloadChunkSize - 1, FileItem.FileSize - 1);
+                            let ResponseData = await fetch("DownloadFile", {
+                                method: "POST",
+                                headers: {
+                                    "Content-Type": "application/json",
+                                    "Range": "bytes=" + ChunkStart + "-" + ChunkEnd,
+                                },
+                                body: JSON.stringify({
+                                    "Filename": FileItem.Filename,
+                                }),
+                            });
+                            ResponseData = await ResponseData.blob();
+                            FileData = new Blob([FileData, ResponseData]);
+                            if (ChunkEnd == FileItem.FileSize - 1)
+                                break;
+                            ChunkIndex++;
+                        }
+                    }
+
                     console.warn("Downloading file end");
                     SetProgressBarInvalid(DownloadProgress);
                     const DownloadLink = URL.createObjectURL(FileData);
