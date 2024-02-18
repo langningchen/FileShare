@@ -37,6 +37,13 @@ class ResponseJSON {
 	}
 }
 
+const ToBase64 = (String) => {
+	return btoa(unescape(encodeURIComponent(String)));
+};
+const FromBase64 = (Base64) => {
+	return decodeURIComponent(escape(atob(Base64)));
+};
+
 export default {
 	async fetch(RequestData: Request, EnvironmentData: Environment, Context): Promise<Response> {
 		try {
@@ -137,7 +144,7 @@ export default {
 					const GithubResponse = await Github.repos.createOrUpdateFileContents({
 						owner: EnvironmentData.GithubOwner,
 						repo: EnvironmentData.GithubRepo,
-						path: Filename,
+						path: ToBase64(Filename),
 						message: "Upload " + Filename,
 						content: FileData,
 					});
@@ -170,7 +177,7 @@ export default {
 					for (const File of GithubResponse["data"]) {
 						if (File["type"] === "file") {
 							ResponseData.push({
-								Filename: File["name"],
+								Filename: FromBase64(File["name"]),
 								FileSize: File["size"],
 							});
 						}
@@ -183,7 +190,7 @@ export default {
 					const GithubResponse = await Github.repos.getContent({
 						owner: EnvironmentData.GithubOwner,
 						repo: EnvironmentData.GithubRepo,
-						path: RequestBody["Filename"],
+						path: ToBase64(RequestBody["Filename"]),
 					});
 					if (GithubResponse["data"]["message"] !== undefined) {
 						return new ResponseJSON(false, GithubResponse["data"]["message"], {});
@@ -194,7 +201,7 @@ export default {
 					const DeleteGithubResponse = await Github.repos.deleteFile({
 						owner: EnvironmentData.GithubOwner,
 						repo: EnvironmentData.GithubRepo,
-						path: RequestBody["Filename"],
+						path: ToBase64(RequestBody["Filename"]),
 						message: "Delete " + RequestBody["Filename"],
 						sha: GithubResponse["data"]["sha"],
 					});
@@ -204,11 +211,10 @@ export default {
 					return new ResponseJSON(true, "", {});
 				}
 				else if (RequestPath === "/DownloadFile" && RequestData.method === "POST") {
-					const Filename: string = RequestBody["Filename"];
 					const GithubResponse = await Github.repos.getContent({
 						owner: EnvironmentData.GithubOwner,
 						repo: EnvironmentData.GithubRepo,
-						path: Filename,
+						path: ToBase64(RequestBody["Filename"]),
 					});
 					if (GithubResponse["data"]["message"] !== undefined) {
 						return new ResponseJSON(false, GithubResponse["data"]["message"], {});
@@ -225,6 +231,7 @@ export default {
 							},
 						});
 					}
+					console.log(DownloadResponse.status);
 					const DownloadData = await DownloadResponse.blob();
 					return new Response(DownloadData, {
 						headers: {
