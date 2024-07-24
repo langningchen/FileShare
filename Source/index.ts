@@ -37,11 +37,11 @@ class ResponseJSON {
 	}
 }
 
-const ToBase64 = (String) => {
-	return btoa(unescape(encodeURIComponent(String)));
+const ToBase64 = (String: string): string => {
+	return btoa(unescape(encodeURIComponent(String))).replaceAll("/", "_");
 };
-const FromBase64 = (Base64) => {
-	return decodeURIComponent(escape(atob(Base64)));
+const FromBase64 = (Base64: string): string => {
+	return decodeURIComponent(escape(atob(Base64.replaceAll("_", "/"))));
 };
 
 export default {
