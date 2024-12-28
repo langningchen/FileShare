@@ -145,7 +145,7 @@ export default {
 						owner: EnvironmentData.GithubOwner,
 						repo: EnvironmentData.GithubRepo,
 						path: ToBase64(Filename),
-						message: "Upload " + Filename,
+						message: `Upload ${Filename} from ${RequestData.headers.get('CF-Connecting-IP')} ${RequestData.cf?.country}/${RequestData.cf?.city}`,
 						content: FileData,
 					});
 					if (GithubResponse["data"]["content"] === undefined) {

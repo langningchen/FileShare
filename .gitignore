@@ -3,3 +3,4 @@ package-lock.json
 .wrangler
 .dev.vars
 worker-configuration.d.ts
+pnpm-lock.yaml
