@@ -1,8 +1,12 @@
 name = "file-share"
 main = "Source/index.ts"
+compatibility_flags = [ "nodejs_compat" ]
 compatibility_date = "2023-10-02"
+assets = { directory = "./public" }
 
-[[d1_databases]]
-binding = "FileShareBufferDatabase"
-database_name = "file-share-buffer"
-database_id = "38d93339-c5d0-4624-bbd6-58c28acddfd5"
+[placement]
+mode = "smart"
+
+[[kv_namespaces]]
+binding = "fileShare"
+id = "701f794a089a437f850254d20aa36c00"

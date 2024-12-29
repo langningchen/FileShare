@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.3.1/css/bootstrap.css" rel="stylesheet">
+    <script src="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.3.1/js/bootstrap.js"></script>
+    <title>文件上传示例</title>
+</head>
+
+<body>
+    <div class="container mt-3">
+        <h3>文件上传示例</h3>
+        <hr>
+        <p>
+            本项目由
+            <a href="https://github.com/langningchen">Langning Chen</a>
+            制作，仅供学习交流使用，在
+            <a href="https://github.com/langningchen/FileShare">GitHub</a>
+            上开源，并遵守
+            <a href="https://github.com/langningchen/FileShare/blob/main/LICENSE">GPL-3.0</a>
+            协议。
+        </p>
+        <div class="mb-3 input-group">
+            <input type="file" class="form-control" id="upFile">
+            <button class="btn btn-primary" id="upButton" disabled>上传</button>
+        </div>
+        <div class="mb-3 input-group">
+            <span class="input-group-text">上传分块大小</span>
+            <input type="number" class="form-control" id="upChunkSize">
+            <span class="input-group-text">MB</span>
+        </div>
+        <div class="progress mb-3">
+            <div class="progress-bar progress-bar-striped progress-bar-animated" id="upProgress" style="width: 0%;">
+            </div>
+        </div>
+        <hr>
+        <button class="btn btn-primary mb-3" id="refreshBtn">刷新文件列表</button>
+        <div class="progress mb-3">
+            <div class="progress-bar progress-bar-striped progress-bar-animated" id="downProgress" style="width: 0%;">
+            </div>
+        </div>
+        <div class="d-flex justify-content-center">
+            <div class="spinner-border" role="status" id="spinner" style="display: none;"></div>
+        </div>
+        <table class="table table-bordered" id="fileLst">
+            <thead>
+                <tr>
+                    <th>文件名</th>
+                    <th>文件大小</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+            </tbody>
+        </table>
+    </div>
+    </div>
+    <script>
+        const req = async (Url, body = {}) => {
+            let res = await fetch(Url, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", },
+                body: JSON.stringify(body),
+            });
+            res = await res.json();
+            if (res.Succeeded == false) { console.error(res.Message); }
+            return res.Data;
+        };
+
+        const RefreshFileList = async () => {
+            const fileLst = document.getElementById("fileLst");
+            const spinner = document.getElementById("spinner");
+            fileLst.style.display = "none";
+            spinner.style.display = "";
+            fileLst.getElementsByTagName("tbody")[0].innerHTML = "";
+            const res = await req("list");
+            fileLst.style.display = "";
+            spinner.style.display = "none";
+            res["files"].forEach((file) => {
+                const { fileId, filename, size, chunks, uploading } = file;
+
+                const row = document.createElement("tr");
+                const filenameCell = document.createElement("td");
+                filenameCell.innerText = filename + (uploading ? ` (上传中)` : ``);
+                row.appendChild(filenameCell);
+                const sizeCell = document.createElement("td");
+                if (size) {
+                    if (size < 1024)
+                        sizeCell.innerText = size + "B";
+                    else if (size < 1024 * 1024)
+                        sizeCell.innerText = (size / 1024).toFixed(2) + "KB";
+                    else if (size < 1024 * 1024 * 1024)
+                        sizeCell.innerText = (size / 1024 / 1024).toFixed(2) + "MB";
+                    else
+                        sizeCell.innerText = (size / 1024 / 1024 / 1024).toFixed(2) + "GB";
+                }
+                row.appendChild(sizeCell);
+                const opCell = document.createElement("td");
+                if (chunks) {
+                    const downBtn = document.createElement("button");
+                    downBtn.classList.add("btn", "btn-primary", "me-2");
+                    downBtn.innerText = "下载";
+                    downBtn.addEventListener("click", async () => {
+                        ShowSpinner(downBtn);
+                        const downProgress = document.getElementById("downProgress");
+
+                        let fileData = new Blob;
+                        for (let chunk = 0; chunk < chunks; chunk++) {
+                            SetProgressBarValue(downProgress, chunk / chunks * 100);
+                            var res = await req("download", { fileId, chunk, });
+                            fileData = new Blob([fileData, new Uint8Array(atob(res.content).split("").map((c) => c.charCodeAt(0)))]);
+                        }
+
+                        SetProgressBarInvalid(downProgress);
+                        const downLink = URL.createObjectURL(fileData);
+                        const downElement = document.createElement("a");
+                        downElement.href = downLink;
+                        downElement.download = filename;
+                        downElement.click();
+                        SetProgressBarUndefined(downProgress);
+                        HideSpinner(downBtn);
+                    });
+                    opCell.appendChild(downBtn);
+                }
+                const delBtn = document.createElement("button");
+                delBtn.classList.add("btn", "btn-danger");
+                delBtn.innerText = "删除";
+                delBtn.addEventListener("click", async () => {
+                    ShowSpinner(delBtn);
+                    req("delete", { fileId, }).then(() => {
+                        HideSpinner(delBtn);
+                        row.remove();
+                    });
+                });
+                opCell.appendChild(delBtn);
+                row.appendChild(opCell);
+                fileLst.getElementsByTagName("tbody")[0].appendChild(row);
+            });
+        };
+
+        const SetProgressBarUndefined = (ProgressBar) => {
+            ProgressBar.classList.remove("progress-bar-striped");
+            ProgressBar.classList.remove("progress-bar-animated");
+            ProgressBar.style.width = "0%";
+            ProgressBar.innerText = "";
+        };
+        const SetProgressBarInvalid = (ProgressBar) => {
+            ProgressBar.classList.add("progress-bar-striped");
+            ProgressBar.classList.add("progress-bar-animated");
+            ProgressBar.style.width = "100%";
+            ProgressBar.innerText = "";
+        };
+        const SetProgressBarValue = (ProgressBar, Value) => {
+            ProgressBar.classList.remove("progress-bar-striped");
+            ProgressBar.classList.remove("progress-bar-animated");
+            ProgressBar.style.width = Value + "%";
+            ProgressBar.innerText = Value.toFixed(2) + "%";
+        };
+
+        const ShowSpinner = (Button) => {
+            let Spinner = document.createElement("span");
+            Spinner.classList.add("spinner-border", "spinner-border-sm", "ms-1");
+            Button.appendChild(Spinner);
+            Button.disabled = true;
+        };
+        const HideSpinner = (Button) => {
+            Button.removeChild(Button.lastChild);
+            Button.disabled = false;
+        };
+
+        document.getElementById("upFile").addEventListener("change", () => {
+            document.getElementById("upButton").disabled = document.getElementById("upFile").files.length == 0;
+        });
+
+        document.getElementById("upChunkSize").addEventListener("blur", () => {
+            const upChunkSize = parseInt(document.getElementById("upChunkSize").value);
+            localStorage.setItem("upChunkSize", upChunkSize);
+        });
+
+        document.getElementById("upButton").addEventListener("click", () => {
+            const upChunkSize = parseInt(localStorage.getItem("upChunkSize")) * 1024 * 1024;
+            ShowSpinner(document.getElementById("upButton"));
+            const upFile = document.getElementById("upFile").files[0];
+            const reader = new FileReader();
+            reader.readAsDataURL(upFile);
+            reader.onload = async () => {
+                const upProgress = document.getElementById("upProgress");
+                const Base64Data = reader.result.split(",")[1];
+                const ChunkCount = Math.ceil(Base64Data.length / upChunkSize);
+                SetProgressBarInvalid(upProgress);
+                const fileId = (await req("start", {
+                    "filename": upFile.name
+                }))["fileId"];
+                for (let i = 0; i < ChunkCount; i++) {
+                    SetProgressBarValue(upProgress, (i + 1) / ChunkCount * 100);
+                    await req("chunk", {
+                        fileId,
+                        content: Base64Data.substr(i * upChunkSize, upChunkSize)
+                    });
+                }
+                SetProgressBarInvalid(upProgress);
+                await req("end", { fileId, });
+                SetProgressBarUndefined(upProgress);
+                HideSpinner(document.getElementById("upButton"));
+                RefreshFileList();
+            }
+        });
+
+        document.getElementById("refreshBtn").addEventListener("click", async () => {
+            ShowSpinner(document.getElementById("refreshBtn"));
+            await RefreshFileList();
+            HideSpinner(document.getElementById("refreshBtn"));
+        });
+
+        if (localStorage.getItem("upChunkSize") === null) {
+            localStorage.setItem("upChunkSize", 8);
+        }
+        document.getElementById("upChunkSize").value = localStorage.getItem("upChunkSize");
+        RefreshFileList();
+
+        if (window.matchMedia('(prefers-color-scheme: dark)').matches) { document.documentElement.setAttribute('data-bs-theme', 'dark'); }
+    </script>
+</body>
+
+</html>

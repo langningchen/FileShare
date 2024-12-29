@@ -1,6 +1,6 @@
 /**********************************************************************
 FileShare: Share files using Cloudflare Workers and GitHub Private Repositories!
-Copyright (C) 2023  langningchen
+Copyright (C) 2024  langningchen
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -16,17 +16,18 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 **********************************************************************/
 
-import Template from "./Template.html";
-import { Octokit } from "@octokit/rest";
-import { D1Database } from "@cloudflare/workers-types";
+import { Octokit } from '@octokit/rest';
+import { KVNamespace } from '@cloudflare/workers-types';
+import { randomUUID } from 'node:crypto';
 
-export interface Environment {
-	FileShareBufferDatabase: D1Database;
+export interface Env {
+	fileShare: KVNamespace;
 	GithubPAT: string;
 	GithubOwner: string;
 	GithubRepo: string;
+	GithubBranch: string;
 }
-class ResponseJSON {
+class ResJson {
 	Succeeded: boolean;
 	Message: string;
 	Data: Object;
@@ -37,226 +38,184 @@ class ResponseJSON {
 	}
 }
 
-const ToBase64 = (String: string): string => {
-	return btoa(unescape(encodeURIComponent(String))).replaceAll("/", "_");
-};
-const FromBase64 = (Base64: string): string => {
-	return decodeURIComponent(escape(atob(Base64.replaceAll("_", "/"))));
+interface File {
+	filename: string;
+	fileId: string;
+	chunks?: number;
+	size?: number;
+	uploading?: boolean;
+}
+
+const getIp = (req: Request): string => {
+	// @ts-ignore
+	return req.headers.get('CF-Connecting-IP') + ' ' + req.cf?.country + '/' + req.cf?.city;
 };
 
 export default {
-	async fetch(RequestData: Request, EnvironmentData: Environment, Context): Promise<Response> {
+	async fetch(req: Request, env: Env, ctx): Promise<Response> {
 		try {
-			const Database: D1Database = EnvironmentData.FileShareBufferDatabase;
-			const RequestPath: string = new URL(RequestData.url).pathname;
-			const ResponseJSONData: ResponseJSON | Response = await (async (): Promise<ResponseJSON | Response> => {
-				if (EnvironmentData.GithubPAT === undefined ||
-					EnvironmentData.GithubOwner === undefined ||
-					EnvironmentData.GithubRepo === undefined) {
-					return new Response(JSON.stringify(new ResponseJSON(false, "Please set the environment variables", {})), {
-						headers: {
-							"content-type": "application/json;charset=UTF-8",
-						},
-					});
+			const path: string = new URL(req.url).pathname;
+			const resJson: ResJson = await (async (): Promise<ResJson> => {
+				if (env.GithubPAT === undefined ||
+					env.GithubOwner === undefined ||
+					env.GithubRepo === undefined ||
+					env.GithubBranch === undefined) {
+					return new ResJson(false, 'Please set the environment variables', {});
 				}
 
-				// Check if the database exists
-				try {
-					await Database.prepare(`SELECT 1 FROM file_list`).all();
-				}
-				catch (Error) {
-					await Database.prepare(`CREATE TABLE file_list (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-	file_name TEXT NOT NULL
-)`).run();
-				}
-				try {
-					await Database.prepare(`SELECT 1 FROM file_chunk`).all();
-				}
-				catch (Error) {
-					await Database.prepare(`CREATE TABLE file_chunk (
-	id INTEGER PRIMARY KEY AUTOINCREMENT,
-	file_id INTEGER NOT NULL,
-	content TEXT NOT NULL,
-	FOREIGN KEY (file_id) REFERENCES file_list(id)
-)`).run();
-				}
-
-				const Github = new Octokit({
-					auth: EnvironmentData.GithubPAT,
-					userAgent: "Cloudflare Worker",
+				const github = new Octokit({
+					auth: env.GithubPAT,
+					userAgent: 'Cloudflare Worker',
 				});
-				let RequestBody: JSON;
+				let requestBody: JSON;
 				try {
-					RequestBody = await RequestData.json();
+					requestBody = await req.json();
 				} catch (ParseError) {
-					RequestBody = JSON.parse("{}");
+					requestBody = JSON.parse('{}');
 				}
-				if (RequestPath === "/" && RequestData.method === "GET") {
-					return new Response(Template, {
-						headers: {
-							"content-type": "text/html;charset=UTF-8",
-						},
-					});
-				}
-				else if (RequestPath === "/UploadFileStart" && RequestData.method === "POST") {
-					const SQLResult =
-						await Database.prepare("INSERT INTO file_list (file_name) VALUES (?)")
-							.bind(RequestBody["Filename"])
-							.all();
-					return new ResponseJSON(true, "", {
-						FileID: SQLResult["meta"]["last_row_id"],
-					});
-				}
-				else if (RequestPath === "/UploadFileChunk" && RequestData.method === "POST") {
-					/**
-					 * Because of Cloudflare D1 free has a 1MB string size limit,
-					 * so we have to split the file chunks into 1MB.
-					 * But we have to make sure that the data is small enough to be stored in the database,
-					 * so we set the limit to 512KB.
-					 * https://developers.cloudflare.com/d1/platform/limits/
-					 */
-					const SizeLimit = 1024 * 512;
-					for (let i = 0; i < RequestBody["Content"].length; i += SizeLimit) {
-						await Database.prepare("INSERT INTO file_chunk (file_id, content) VALUES (?, ?)")
-							.bind(RequestBody["FileID"], RequestBody["Content"].substr(i, SizeLimit))
-							.all();
-					}
-					return new ResponseJSON(true, "", {});
-				}
-				else if (RequestPath === "/UploadFileEnd" && RequestData.method === "POST") {
-					const SelectSQLResult =
-						await Database.prepare("SELECT file_name FROM file_list WHERE id = ?")
-							.bind(RequestBody["FileID"])
-							.all();
-					if (SelectSQLResult.results.length === 0) {
-						return new ResponseJSON(false, "File not found", {});
-					}
-					const Filename: string = SelectSQLResult.results[0]["file_name"] as string;
-					const ContentSQLResult =
-						await Database.prepare("SELECT content FROM file_chunk WHERE file_id = ? ORDER BY id ASC")
-							.bind(RequestBody["FileID"])
-							.all();
-					let FileData = "";
-					for (const Row of ContentSQLResult.results) {
-						FileData += Row["content"];
-					}
-					const GithubResponse = await Github.repos.createOrUpdateFileContents({
-						owner: EnvironmentData.GithubOwner,
-						repo: EnvironmentData.GithubRepo,
-						path: ToBase64(Filename),
-						message: `Upload ${Filename} from ${RequestData.headers.get('CF-Connecting-IP')} ${RequestData.cf?.country}/${RequestData.cf?.city}`,
-						content: FileData,
-					});
-					if (GithubResponse["data"]["content"] === undefined) {
-						return new ResponseJSON(false, GithubResponse["data"]["message"], {});
-					}
-					// Delete file chunks first to avoid foreign key constraint
-					await Database.prepare("DELETE FROM file_chunk WHERE file_id = ?")
-						.bind(RequestBody["FileID"])
-						.run();
-					await Database.prepare("DELETE FROM file_list WHERE id = ?")
-						.bind(RequestBody["FileID"])
-						.run();
-					return new ResponseJSON(true, "", {});
-				}
-				else if (RequestPath === "/GetFileList" && RequestData.method === "GET") {
-					const GithubResponse = await Github.repos.getContent({
-						owner: EnvironmentData.GithubOwner,
-						repo: EnvironmentData.GithubRepo,
-						path: "",
-					});
-					if (GithubResponse["data"]["message"] !== undefined) {
-						return new ResponseJSON(false, GithubResponse["data"]["message"], {});
-					}
-					interface FileData {
-						Filename: string;
-						FileSize: number;
-					}
-					const ResponseData: FileData[] = [];
-					for (const File of GithubResponse["data"]) {
-						if (File["type"] === "file") {
-							ResponseData.push({
-								Filename: FromBase64(File["name"]),
-								FileSize: File["size"],
-							});
+				if (req.method !== 'POST') { return new ResJson(false, 'Method not allowed', {}); }
+				if (path === '/list') {
+					const files: File[] = [];
+					const keys = await env.fileShare.list();
+					for (const key of keys.keys) {
+						if (key.name.endsWith(':uploaded')) {
+							const fileId = key.name.split(':')[0];
+							const chunks = parseInt((await env.fileShare.get(`${fileId}:chunks`))!);
+							const size = parseInt((await env.fileShare.get(`${fileId}:size`))!);
+							const filename = (await env.fileShare.get(`${fileId}:filename`))!;
+							files.push({ filename, fileId, chunks, size, });
+						} else if (key.name.endsWith(':uploading')) {
+							const fileId = key.name.split(':')[0];
+							const filename = (await env.fileShare.get(`${fileId}:filename`))!;
+							files.push({ filename, fileId, uploading: true });
 						}
 					}
-					return new ResponseJSON(true, "", {
-						FileList: ResponseData,
+					return new ResJson(true, '', { files, });
+				}
+				else if (path === '/start') {
+					const fileId = randomUUID();
+					await env.fileShare.put(`${fileId}:chunks`, `0`);
+					await env.fileShare.put(`${fileId}:filename`, requestBody['filename']);
+					await env.fileShare.put(`${fileId}:size`, `0`);
+					await env.fileShare.put(`${fileId}:uploading`, `1`);
+					return new ResJson(true, '', { fileId, });
+				}
+				else if (path === '/chunk') {
+					const fileId = requestBody['fileId'];
+					if (await env.fileShare.get(`${fileId}:uploading`) === null) {
+						return new ResJson(false, 'File not found', {});
+					}
+					const chunkId = parseInt((await env.fileShare.get(`${fileId}:chunks`))!);
+					const size = parseInt((await env.fileShare.get(`${fileId}:size`))!);
+					const content = requestBody['content'];
+					const githubResponse = await github.repos.createOrUpdateFileContents({
+						owner: env.GithubOwner,
+						repo: env.GithubRepo,
+						path: `${fileId}/${chunkId}`,
+						message: `Upload ${fileId}/${chunkId} from ${getIp(req)}`,
+						content: content,
+					});
+					if (githubResponse['data']['content'] === undefined) {
+						return new ResJson(false, githubResponse['data']['message'], {});
+					}
+					await env.fileShare.put(`${fileId}:chunks`, (chunkId + 1).toString());
+					await env.fileShare.put(`${fileId}:size`, (size + content.length).toString());
+					return new ResJson(true, '', {});
+				}
+				else if (path === '/end') {
+					const fileId = requestBody['fileId'];
+					if (!fileId || (await env.fileShare.get(`${fileId}:uploading`)) === null) {
+						return new ResJson(false, 'File not found', {});
+					}
+					await env.fileShare.delete(`${fileId}:uploading`);
+					await env.fileShare.put(`${fileId}:uploaded`, `1`);
+					return new ResJson(true, '', {});
+				}
+				else if (path === '/delete') {
+					const fileId = requestBody['fileId'];
+					if ((!fileId ||
+						(await env.fileShare.get(`${fileId}:uploaded`)) === null &&
+						await env.fileShare.get(`${fileId}:uploading`)) === null) {
+						return new ResJson(false, 'File not found', {});
+					}
+					const currentCommitSha = (await github.git.getRef({
+						owner: env.GithubOwner,
+						repo: env.GithubRepo,
+						ref: `heads/${env.GithubBranch}`,
+					})).data.object.sha;
+					const treeSha = (await github.git.getCommit({
+						owner: env.GithubOwner,
+						repo: env.GithubRepo,
+						commit_sha: currentCommitSha,
+					})).data.tree.sha;
+					const folderSha = (await github.git.getTree({
+						owner: env.GithubOwner,
+						repo: env.GithubRepo,
+						tree_sha: treeSha,
+					})).data.tree.filter((item: any) => item.path == fileId)[0].sha!;
+					const oldTree = (await github.git.getTree({
+						owner: env.GithubOwner,
+						repo: env.GithubRepo,
+						tree_sha: folderSha,
+					})).data.tree;
+					const newTree = oldTree.map(({ path, mode, type }) => ({ path: `${fileId}/${path}`, sha: null, mode, type }));
+					const newTreeSha = (await github.git.createTree({
+						owner: env.GithubOwner,
+						repo: env.GithubRepo,
+						base_tree: treeSha,
+						tree: newTree as any,
+					})).data.sha;
+					const newCommitSha = (await github.git.createCommit({
+						owner: env.GithubOwner,
+						repo: env.GithubRepo,
+						message: `Delete ${fileId} from ${getIp(req)}`,
+						tree: newTreeSha,
+						parents: [currentCommitSha],
+					})).data.sha;
+					await github.git.updateRef({
+						owner: env.GithubOwner,
+						repo: env.GithubRepo,
+						ref: `heads/${env.GithubBranch}`,
+						sha: newCommitSha,
+					});
+
+					await env.fileShare.delete(`${requestBody['fileId']}:chunks`);
+					await env.fileShare.delete(`${requestBody['fileId']}:size`);
+					await env.fileShare.delete(`${requestBody['fileId']}:filename`);
+					await env.fileShare.delete(`${requestBody['fileId']}:uploaded`);
+					await env.fileShare.delete(`${requestBody['fileId']}:uploading`);
+					return new ResJson(true, '', {});
+				}
+				else if (path === '/download') {
+					const fileId = requestBody['fileId'];
+					const chunk = requestBody['chunk'];
+					if (typeof fileId !== "string" || (await env.fileShare.get(`${fileId}:uploaded`)) === null) {
+						return new ResJson(false, 'File not found', {});
+					}
+					const chunks = parseInt((await env.fileShare.get(`${fileId}:chunks`))!);
+					if (typeof chunk !== "number" || chunk >= chunks) {
+						return new ResJson(false, 'Chunk not found', {});
+					}
+					const githubResponse = await github.repos.getContent({
+						owner: env.GithubOwner,
+						repo: env.GithubRepo,
+						path: `${fileId}/${chunk}`,
+					});
+					if (githubResponse.data['message'] !== undefined) {
+						return new ResJson(false, githubResponse.data['message'], {});
+					}
+					return new ResJson(true, '', {
+						content: githubResponse.data['content'],
 					});
 				}
-				else if (RequestPath === "/DeleteFile" && RequestData.method === "POST") {
-					const GithubResponse = await Github.repos.getContent({
-						owner: EnvironmentData.GithubOwner,
-						repo: EnvironmentData.GithubRepo,
-						path: ToBase64(RequestBody["Filename"]),
-					});
-					if (GithubResponse["data"]["message"] !== undefined) {
-						return new ResponseJSON(false, GithubResponse["data"]["message"], {});
-					}
-					if (GithubResponse["data"]["sha"] === undefined) {
-						return new ResponseJSON(false, "File not found", {});
-					}
-					const DeleteGithubResponse = await Github.repos.deleteFile({
-						owner: EnvironmentData.GithubOwner,
-						repo: EnvironmentData.GithubRepo,
-						path: ToBase64(RequestBody["Filename"]),
-						message: "Delete " + RequestBody["Filename"],
-						sha: GithubResponse["data"]["sha"],
-					});
-					if (DeleteGithubResponse["data"]["message"] !== undefined) {
-						return new ResponseJSON(false, DeleteGithubResponse["data"]["message"], {});
-					}
-					return new ResponseJSON(true, "", {});
-				}
-				else if (RequestPath === "/DownloadFile" && RequestData.method === "POST") {
-					const GithubResponse = await Github.repos.getContent({
-						owner: EnvironmentData.GithubOwner,
-						repo: EnvironmentData.GithubRepo,
-						path: ToBase64(RequestBody["Filename"]),
-					});
-					if (GithubResponse["data"]["message"] !== undefined) {
-						return new ResponseJSON(false, GithubResponse["data"]["message"], {});
-					}
-					const DownloadURL: string = GithubResponse["data"]["download_url"];
-					let DownloadResponse: Response;
-					if (RequestData.headers.get("range") === null) {
-						DownloadResponse = await fetch(DownloadURL);
-					}
-					else {
-						DownloadResponse = await fetch(DownloadURL, {
-							headers: {
-								"range": RequestData.headers.get("range") as string,
-							},
-						});
-					}
-					console.log(DownloadResponse.status);
-					const DownloadData = await DownloadResponse.blob();
-					return new Response(DownloadData, {
-						headers: {
-							"content-type": DownloadResponse.headers.get("content-type") as string,
-							"content-range": DownloadResponse.headers.get("content-range") as string,
-							"content-length": DownloadResponse.headers.get("content-length") as string,
-						},
-					});
-				}
-				else {
-					return new ResponseJSON(false, "Not found", {});
-				}
+				return new ResJson(false, 'Not found', {});
 			})();
-			if (ResponseJSONData instanceof Response)
-				return ResponseJSONData;
-			return new Response(JSON.stringify(ResponseJSONData), {
-				headers: {
-					"content-type": "application/json;charset=UTF-8",
-				},
+			return new Response(JSON.stringify(resJson), {
+				headers: { 'content-type': 'application/json;charset=UTF-8', },
 			});
 		} catch (Error) {
-			return new Response(JSON.stringify(new ResponseJSON(false, Error.message, {})), {
-				headers: {
-					"content-type": "application/json;charset=UTF-8",
-				},
+			return new Response(JSON.stringify(new ResJson(false, Error.message, {})), {
+				headers: { 'content-type': 'application/json;charset=UTF-8', },
 			});
 		}
 	}
