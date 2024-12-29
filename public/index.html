@@ -5,28 +5,27 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link href="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.3.1/css/bootstrap.css" rel="stylesheet">
     <script src="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.3.1/js/bootstrap.js"></script>
-    <title>文件上传示例</title>
+    <title>File Share</title>
 </head>
 
 <body>
     <div class="container mt-3">
-        <h3>文件上传示例</h3>
+        <h3>File Share</h3>
         <hr>
         <p>
-            本项目由
+            This project is created by
             <a href="https://github.com/langningchen">Langning Chen</a>
-            制作，仅供学习交流使用，在
+            for learning and communication purposes only. It is open sourced on
             <a href="https://github.com/langningchen/FileShare">GitHub</a>
-            上开源，并遵守
-            <a href="https://github.com/langningchen/FileShare/blob/main/LICENSE">GPL-3.0</a>
-            协议。
+            and licensed under
+            <a href="https://github.com/langningchen/FileShare/blob/main/LICENSE">GPL-3.0</a>.
         </p>
         <div class="mb-3 input-group">
             <input type="file" class="form-control" id="upFile">
-            <button class="btn btn-primary" id="upButton" disabled>上传</button>
+            <button class="btn btn-primary" id="upButton" disabled>Upload</button>
         </div>
         <div class="mb-3 input-group">
-            <span class="input-group-text">上传分块大小</span>
+            <span class="input-group-text">Upload chunk size</span>
             <input type="number" class="form-control" id="upChunkSize">
             <span class="input-group-text">MB</span>
         </div>
@@ -35,7 +34,7 @@
             </div>
         </div>
         <hr>
-        <button class="btn btn-primary mb-3" id="refreshBtn">刷新文件列表</button>
+        <button class="btn btn-primary mb-3" id="refreshBtn">Refresh file list</button>
         <div class="progress mb-3">
             <div class="progress-bar progress-bar-striped progress-bar-animated" id="downProgress" style="width: 0%;">
             </div>
@@ -46,9 +45,9 @@
         <table class="table table-bordered" id="fileLst">
             <thead>
                 <tr>
-                    <th>文件名</th>
-                    <th>文件大小</th>
-                    <th>操作</th>
+                    <th>File name</th>
+                    <th>File size</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -100,7 +99,7 @@
                 if (chunks) {
                     const downBtn = document.createElement("button");
                     downBtn.classList.add("btn", "btn-primary", "me-2");
-                    downBtn.innerText = "下载";
+                    downBtn.innerText = "Download";
                     downBtn.addEventListener("click", async () => {
                         ShowSpinner(downBtn);
                         const downProgress = document.getElementById("downProgress");
@@ -125,7 +124,7 @@
                 }
                 const delBtn = document.createElement("button");
                 delBtn.classList.add("btn", "btn-danger");
-                delBtn.innerText = "删除";
+                delBtn.innerText = "Delete";
                 delBtn.addEventListener("click", async () => {
                     ShowSpinner(delBtn);
                     req("delete", { fileId, }).then(() => {
