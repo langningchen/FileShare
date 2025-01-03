@@ -62,7 +62,7 @@
                 headers: { "Content-Type": "application/json", },
                 body: JSON.stringify(body),
             });
-            if (res.headers.get("Content-Type") === "application/json") {
+            if (res.headers.get("Content-Type").toString().includes("application/json")) {
                 res = await res.json();
                 if (res.Succeeded == false) { console.error(res.Message); }
                 return res.Data;
