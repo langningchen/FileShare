@@ -62,9 +62,12 @@
                 headers: { "Content-Type": "application/json", },
                 body: JSON.stringify(body),
             });
-            res = await res.json();
-            if (res.Succeeded == false) { console.error(res.Message); }
-            return res.Data;
+            if (res.headers.get("Content-Type") === "application/json") {
+                res = await res.json();
+                if (res.Succeeded == false) { console.error(res.Message); }
+                return res.Data;
+            }
+            return { reader: res.body.getReader(), length: parseInt(res.headers.get("Content-Length")) };
         };
 
         const RefreshFileList = async () => {
@@ -107,8 +110,16 @@
                         let fileData = new Blob;
                         for (let chunk = 0; chunk < chunks; chunk++) {
                             SetProgressBarValue(downProgress, chunk / chunks * 100);
-                            var res = await req("download", { fileId, chunk, });
-                            fileData = new Blob([fileData, new Uint8Array(atob(res.content).split("").map((c) => c.charCodeAt(0)))]);
+                            const { reader, length } = await req("download", { fileId, chunk, });
+                            while (true) {
+                                const { done, value } = await reader.read();
+                                if (done) {
+                                    break;
+                                }
+                                readLength += value.length;
+                                SetProgressBarValue(downProgress, (chunk + readLength / length) / chunks * 100);
+                                fileData = new Blob([fileData, value]);
+                            }
                         }
 
                         SetProgressBarInvalid(downProgress);
