@@ -55,7 +55,7 @@ export default {
 	async fetch(req: Request, env: Env, ctx): Promise<Response> {
 		try {
 			const path: string = new URL(req.url).pathname;
-			const resJson: ResJson = await (async (): Promise<ResJson> => {
+			const resJson: ResJson | Response = await (async (): Promise<ResJson | Response> => {
 				if (env.GithubPAT === undefined ||
 					env.GithubOwner === undefined ||
 					env.GithubRepo === undefined ||
@@ -200,16 +200,16 @@ export default {
 						owner: env.GithubOwner,
 						repo: env.GithubRepo,
 						path: `${fileId}/${chunk}`,
+						mediaType: { format: 'raw', },
 					});
-					if (githubResponse.data['message'] !== undefined) {
-						return new ResJson(false, githubResponse.data['message'], {});
-					}
-					return new ResJson(true, '', {
-						content: githubResponse.data['content'],
+					// @ts-ignore
+					return new Response(githubResponse.data as ArrayBuffer, {
+						headers: { 'content-type': 'application/octet-stream', },
 					});
 				}
 				return new ResJson(false, 'Not found', {});
 			})();
+			if (resJson instanceof Response) { return resJson; }
 			return new Response(JSON.stringify(resJson), {
 				headers: { 'content-type': 'application/json;charset=UTF-8', },
 			});
