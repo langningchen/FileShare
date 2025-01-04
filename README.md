@@ -15,7 +15,7 @@ Share files using Cloudflare Workers and GitHub Private Repositories!
 
 ```toml
 name = "file-share"
-main = "Source/index.ts"
+main = "src/index.ts"
 compatibility_date = "2023-10-02"
 
 [[d1_databases]]

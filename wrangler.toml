@@ -1,5 +1,5 @@
 name = "file-share"
-main = "Source/index.ts"
+main = "src/index.ts"
 compatibility_flags = [ "nodejs_compat" ]
 compatibility_date = "2023-10-02"
 assets = { directory = "./public" }
