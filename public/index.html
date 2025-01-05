@@ -80,7 +80,7 @@
             fileLst.style.display = "";
             spinner.style.display = "none";
             res["files"].forEach((file) => {
-                const { fileId, filename, size, chunks, uploading } = file;
+                const { fileId, filename, size, chunks, uploading, admin } = file;
 
                 const row = document.createElement("tr");
                 const filenameCell = document.createElement("td");
@@ -134,17 +134,19 @@
                     });
                     opCell.appendChild(downBtn);
                 }
-                const delBtn = document.createElement("button");
-                delBtn.classList.add("btn", "btn-danger");
-                delBtn.innerText = "Delete";
-                delBtn.addEventListener("click", async () => {
-                    ShowSpinner(delBtn);
-                    req("delete", { fileId, }).then(() => {
-                        HideSpinner(delBtn);
-                        row.remove();
+                if (admin) {
+                    const delBtn = document.createElement("button");
+                    delBtn.classList.add("btn", "btn-danger");
+                    delBtn.innerText = "Delete";
+                    delBtn.addEventListener("click", async () => {
+                        ShowSpinner(delBtn);
+                        req("delete", { fileId, }).then(() => {
+                            HideSpinner(delBtn);
+                            row.remove();
+                        });
                     });
-                });
-                opCell.appendChild(delBtn);
+                    opCell.appendChild(delBtn);
+                }
                 row.appendChild(opCell);
                 fileLst.getElementsByTagName("tbody")[0].appendChild(row);
             });

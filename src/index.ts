@@ -44,12 +44,8 @@ interface File {
 	chunks?: number;
 	size?: number;
 	uploading?: boolean;
+	admin: boolean;
 }
-
-const getIp = (req: Request): string => {
-	// @ts-ignore
-	return req.headers.get('CF-Connecting-IP') + ' ' + req.cf?.country + '/' + req.cf?.city;
-};
 
 export default {
 	async fetch(req: Request, env: Env, ctx): Promise<Response> {
@@ -65,6 +61,7 @@ export default {
 
 				const owner = env.GithubOwner;
 				const repo = env.GithubRepo;
+				const connectingIp = req.headers.get('CF-Connecting-IP') || 'localhost';
 
 				const github = new Octokit({ auth: env.GithubPAT, userAgent: 'Cloudflare Worker', });
 				let requestBody: JSON;
@@ -74,18 +71,20 @@ export default {
 					const files: File[] = [];
 					const keys = await env.fileShare.list();
 					for (const key of keys.keys) {
+						const fileId = key.name.split(':')[0];
 						if (key.name.endsWith(':uploaded')) {
-							const fileId = key.name.split(':')[0];
+							const filename = (await env.fileShare.get(`${fileId}:filename`))!;
+							const ip = (await env.fileShare.get(`${fileId}:ip`))!;
 							const chunks = parseInt((await env.fileShare.get(`${fileId}:chunks`))!);
 							const size = parseInt((await env.fileShare.get(`${fileId}:size`))!);
-							const filename = (await env.fileShare.get(`${fileId}:filename`))!;
-							files.push({ filename, fileId, chunks, size, });
+							files.push({ filename, fileId, chunks, size, admin: connectingIp === ip });
 						} else if (key.name.endsWith(':uploading')) {
-							const fileId = key.name.split(':')[0];
 							const filename = (await env.fileShare.get(`${fileId}:filename`))!;
-							files.push({ filename, fileId, uploading: true });
+							const ip = (await env.fileShare.get(`${fileId}:ip`))!;
+							files.push({ filename, fileId, uploading: true, admin: connectingIp === ip });
 						}
 					}
+					console.log(files);
 					return new ResJson(true, '', { files, });
 				}
 				else if (path === '/start') {
@@ -94,6 +93,7 @@ export default {
 					await env.fileShare.put(`${fileId}:filename`, requestBody['filename']);
 					await env.fileShare.put(`${fileId}:size`, `0`);
 					await env.fileShare.put(`${fileId}:uploading`, `1`);
+					await env.fileShare.put(`${fileId}:ip`, connectingIp);
 					return new ResJson(true, '', { fileId, });
 				}
 				else if (path === '/chunk') {
@@ -107,7 +107,7 @@ export default {
 					const githubResponse = await github.repos.createOrUpdateFileContents({
 						owner, repo,
 						path: `${fileId}/${chunkId}`,
-						message: `Upload ${fileId}/${chunkId} from ${getIp(req)}`,
+						message: `Upload ${fileId}/${chunkId} from ${connectingIp}`,
 						content: content,
 					});
 					if (githubResponse['data']['content'] === undefined) {
@@ -133,25 +133,31 @@ export default {
 						await env.fileShare.get(`${fileId}:uploading`)) === null) {
 						return new ResJson(false, 'File not found', {});
 					}
+					const ip = (await env.fileShare.get(`${fileId}:ip`))!;
+					if (connectingIp !== ip) { return new ResJson(false, 'Permission denied', {}); }
 					const currentCommitSha = (await github.git.getRef({ owner, repo, ref: `heads/${env.GithubBranch}`, })).data.object.sha;
 					const treeSha = (await github.git.getCommit({ owner, repo, commit_sha: currentCommitSha, })).data.tree.sha;
-					const folderSha = (await github.git.getTree({ owner, repo, tree_sha: treeSha, })).data.tree.filter((item: any) => item.path == fileId)[0].sha!;
-					const oldTree = (await github.git.getTree({ owner, repo, tree_sha: folderSha, })).data.tree;
-					const newTree = oldTree.map(({ path, mode, type }) => ({ path: `${fileId}/${path}`, sha: null, mode, type }));
-					const newTreeSha = (await github.git.createTree({ owner, repo, base_tree: treeSha, tree: newTree as any, })).data.sha;
-					const newCommitSha = (await github.git.createCommit({
-						owner, repo,
-						message: `Delete ${fileId} from ${getIp(req)}`,
-						tree: newTreeSha,
-						parents: [currentCommitSha],
-					})).data.sha;
-					await github.git.updateRef({ owner, repo, ref: `heads/${env.GithubBranch}`, sha: newCommitSha, });
+					const folders = (await github.git.getTree({ owner, repo, tree_sha: treeSha, })).data.tree.filter((item: any) => item.path == fileId);
+					if (folders.length !== 0) {
+						const folderSha = folders[0].sha!;
+						const oldTree = (await github.git.getTree({ owner, repo, tree_sha: folderSha, })).data.tree;
+						const newTree = oldTree.map(({ path, mode, type }) => ({ path: `${fileId}/${path}`, sha: null, mode, type }));
+						const newTreeSha = (await github.git.createTree({ owner, repo, base_tree: treeSha, tree: newTree as any, })).data.sha;
+						const newCommitSha = (await github.git.createCommit({
+							owner, repo,
+							message: `Delete ${fileId} from ${connectingIp}`,
+							tree: newTreeSha,
+							parents: [currentCommitSha],
+						})).data.sha;
+						await github.git.updateRef({ owner, repo, ref: `heads/${env.GithubBranch}`, sha: newCommitSha, });
+					}
 
 					await env.fileShare.delete(`${requestBody['fileId']}:chunks`);
 					await env.fileShare.delete(`${requestBody['fileId']}:size`);
 					await env.fileShare.delete(`${requestBody['fileId']}:filename`);
 					await env.fileShare.delete(`${requestBody['fileId']}:uploaded`);
 					await env.fileShare.delete(`${requestBody['fileId']}:uploading`);
+					await env.fileShare.delete(`${requestBody['fileId']}:ip`);
 					return new ResJson(true, '', {});
 				}
 				else if (path === '/download') {
