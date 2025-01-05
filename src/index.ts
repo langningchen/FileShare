@@ -52,10 +52,7 @@ export default {
 		try {
 			const path: string = new URL(req.url).pathname;
 			const resJson: ResJson | Response = await (async (): Promise<ResJson | Response> => {
-				if (env.GithubPAT === undefined ||
-					env.GithubOwner === undefined ||
-					env.GithubRepo === undefined ||
-					env.GithubBranch === undefined) {
+				if (!env.GithubPAT || !env.GithubOwner || !env.GithubRepo || !env.GithubBranch) {
 					return new ResJson(false, 'Please set the environment variables', {});
 				}
 
@@ -98,9 +95,7 @@ export default {
 				}
 				else if (path === '/chunk') {
 					const fileId = requestBody['fileId'];
-					if (await env.fileShare.get(`${fileId}:uploading`) === null) {
-						return new ResJson(false, 'File not found', {});
-					}
+					if (await env.fileShare.get(`${fileId}:uploading`) === null) { return new ResJson(false, 'File not found', {}); }
 					const chunkId = parseInt((await env.fileShare.get(`${fileId}:chunks`))!);
 					const size = parseInt((await env.fileShare.get(`${fileId}:size`))!);
 					const content = requestBody['content'];
@@ -110,18 +105,14 @@ export default {
 						message: `Upload ${fileId}/${chunkId} from ${connectingIp}`,
 						content: content,
 					});
-					if (githubResponse['data']['content'] === undefined) {
-						return new ResJson(false, githubResponse['data']['message'], {});
-					}
+					if (!githubResponse['data']['content']) { return new ResJson(false, githubResponse['data']['message'], {}); }
 					await env.fileShare.put(`${fileId}:chunks`, (chunkId + 1).toString());
 					await env.fileShare.put(`${fileId}:size`, (size + content.length).toString());
 					return new ResJson(true, '', {});
 				}
 				else if (path === '/end') {
 					const fileId = requestBody['fileId'];
-					if (!fileId || (await env.fileShare.get(`${fileId}:uploading`)) === null) {
-						return new ResJson(false, 'File not found', {});
-					}
+					if (!fileId || (await env.fileShare.get(`${fileId}:uploading`)) === null) { return new ResJson(false, 'File not found', {}); }
 					await env.fileShare.delete(`${fileId}:uploading`);
 					await env.fileShare.put(`${fileId}:uploaded`, `1`);
 					return new ResJson(true, '', {});
