@@ -63,16 +63,12 @@ export default {
 					return new ResJson(false, 'Please set the environment variables', {});
 				}
 
-				const github = new Octokit({
-					auth: env.GithubPAT,
-					userAgent: 'Cloudflare Worker',
-				});
+				const owner = env.GithubOwner;
+				const repo = env.GithubRepo;
+
+				const github = new Octokit({ auth: env.GithubPAT, userAgent: 'Cloudflare Worker', });
 				let requestBody: JSON;
-				try {
-					requestBody = await req.json();
-				} catch (ParseError) {
-					requestBody = JSON.parse('{}');
-				}
+				requestBody = await req.json();
 				if (req.method !== 'POST') { return new ResJson(false, 'Method not allowed', {}); }
 				if (path === '/list') {
 					const files: File[] = [];
@@ -109,8 +105,7 @@ export default {
 					const size = parseInt((await env.fileShare.get(`${fileId}:size`))!);
 					const content = requestBody['content'];
 					const githubResponse = await github.repos.createOrUpdateFileContents({
-						owner: env.GithubOwner,
-						repo: env.GithubRepo,
+						owner, repo,
 						path: `${fileId}/${chunkId}`,
 						message: `Upload ${fileId}/${chunkId} from ${getIp(req)}`,
 						content: content,
@@ -138,46 +133,19 @@ export default {
 						await env.fileShare.get(`${fileId}:uploading`)) === null) {
 						return new ResJson(false, 'File not found', {});
 					}
-					const currentCommitSha = (await github.git.getRef({
-						owner: env.GithubOwner,
-						repo: env.GithubRepo,
-						ref: `heads/${env.GithubBranch}`,
-					})).data.object.sha;
-					const treeSha = (await github.git.getCommit({
-						owner: env.GithubOwner,
-						repo: env.GithubRepo,
-						commit_sha: currentCommitSha,
-					})).data.tree.sha;
-					const folderSha = (await github.git.getTree({
-						owner: env.GithubOwner,
-						repo: env.GithubRepo,
-						tree_sha: treeSha,
-					})).data.tree.filter((item: any) => item.path == fileId)[0].sha!;
-					const oldTree = (await github.git.getTree({
-						owner: env.GithubOwner,
-						repo: env.GithubRepo,
-						tree_sha: folderSha,
-					})).data.tree;
+					const currentCommitSha = (await github.git.getRef({ owner, repo, ref: `heads/${env.GithubBranch}`, })).data.object.sha;
+					const treeSha = (await github.git.getCommit({ owner, repo, commit_sha: currentCommitSha, })).data.tree.sha;
+					const folderSha = (await github.git.getTree({ owner, repo, tree_sha: treeSha, })).data.tree.filter((item: any) => item.path == fileId)[0].sha!;
+					const oldTree = (await github.git.getTree({ owner, repo, tree_sha: folderSha, })).data.tree;
 					const newTree = oldTree.map(({ path, mode, type }) => ({ path: `${fileId}/${path}`, sha: null, mode, type }));
-					const newTreeSha = (await github.git.createTree({
-						owner: env.GithubOwner,
-						repo: env.GithubRepo,
-						base_tree: treeSha,
-						tree: newTree as any,
-					})).data.sha;
+					const newTreeSha = (await github.git.createTree({ owner, repo, base_tree: treeSha, tree: newTree as any, })).data.sha;
 					const newCommitSha = (await github.git.createCommit({
-						owner: env.GithubOwner,
-						repo: env.GithubRepo,
+						owner, repo,
 						message: `Delete ${fileId} from ${getIp(req)}`,
 						tree: newTreeSha,
 						parents: [currentCommitSha],
 					})).data.sha;
-					await github.git.updateRef({
-						owner: env.GithubOwner,
-						repo: env.GithubRepo,
-						ref: `heads/${env.GithubBranch}`,
-						sha: newCommitSha,
-					});
+					await github.git.updateRef({ owner, repo, ref: `heads/${env.GithubBranch}`, sha: newCommitSha, });
 
 					await env.fileShare.delete(`${requestBody['fileId']}:chunks`);
 					await env.fileShare.delete(`${requestBody['fileId']}:size`);
@@ -189,34 +157,22 @@ export default {
 				else if (path === '/download') {
 					const fileId = requestBody['fileId'];
 					const chunk = requestBody['chunk'];
-					if (typeof fileId !== "string" || (await env.fileShare.get(`${fileId}:uploaded`)) === null) {
-						return new ResJson(false, 'File not found', {});
-					}
+					if (typeof fileId !== "string" || (await env.fileShare.get(`${fileId}:uploaded`)) === null) { return new ResJson(false, 'File not found', {}); }
 					const chunks = parseInt((await env.fileShare.get(`${fileId}:chunks`))!);
-					if (typeof chunk !== "number" || chunk >= chunks) {
-						return new ResJson(false, 'Chunk not found', {});
-					}
-					const githubResponse = await github.repos.getContent({
-						owner: env.GithubOwner,
-						repo: env.GithubRepo,
-						path: `${fileId}/${chunk}`,
-						mediaType: { format: 'raw', },
+					if (typeof chunk !== "number" || chunk >= chunks) { return new ResJson(false, 'Chunk not found', {}); }
+					const githubResponse = await fetch(`https://raw.githubusercontent.com/${env.GithubOwner}/${env.GithubRepo}/${env.GithubBranch}/${fileId}/${chunk}`, {
+						headers: { 'Authorization': `token ${env.GithubPAT}`, },
 					});
-					// @ts-ignore
-					return new Response(githubResponse.data as ArrayBuffer, {
-						headers: { 'content-type': 'application/octet-stream', },
-					});
+					if (!githubResponse.ok) { return new ResJson(false, 'Not found', {}); }
+					const responseData: ArrayBuffer = await githubResponse.arrayBuffer();
+					return new Response(responseData, { headers: { 'content-type': 'application/octet-stream', }, });
 				}
 				return new ResJson(false, 'Not found', {});
 			})();
 			if (resJson instanceof Response) { return resJson; }
-			return new Response(JSON.stringify(resJson), {
-				headers: { 'content-type': 'application/json;charset=UTF-8', },
-			});
+			return new Response(JSON.stringify(resJson), { headers: { 'content-type': 'application/json;charset=UTF-8', }, });
 		} catch (Error) {
-			return new Response(JSON.stringify(new ResJson(false, Error.message, {})), {
-				headers: { 'content-type': 'application/json;charset=UTF-8', },
-			});
+			return new Response(JSON.stringify(new ResJson(false, Error.message, {})), { headers: { 'content-type': 'application/json;charset=UTF-8', }, });
 		}
 	}
 };
