@@ -128,9 +128,9 @@ export default {
 				}
 				else if (path === '/delete') {
 					const fileId = requestBody['fileId'];
-					if ((!fileId ||
-						(await env.fileShare.get(`${fileId}:uploaded`)) === null &&
-						await env.fileShare.get(`${fileId}:uploading`)) === null) {
+					if (!fileId ||
+						((await env.fileShare.get(`${fileId}:uploaded`)) === null &&
+							await env.fileShare.get(`${fileId}:uploading`) === null)) {
 						return new ResJson(false, 'File not found', {});
 					}
 					const ip = (await env.fileShare.get(`${fileId}:ip`))!;
@@ -163,9 +163,9 @@ export default {
 				else if (path === '/download') {
 					const fileId = requestBody['fileId'];
 					const chunk = requestBody['chunk'];
-					if (typeof fileId !== "string" || (await env.fileShare.get(`${fileId}:uploaded`)) === null) { return new ResJson(false, 'File not found', {}); }
+					if (typeof fileId !== 'string' || (await env.fileShare.get(`${fileId}:uploaded`)) === null) { return new ResJson(false, 'File not found', {}); }
 					const chunks = parseInt((await env.fileShare.get(`${fileId}:chunks`))!);
-					if (typeof chunk !== "number" || chunk >= chunks) { return new ResJson(false, 'Chunk not found', {}); }
+					if (typeof chunk !== 'number' || chunk >= chunks) { return new ResJson(false, 'Chunk not found', {}); }
 					const githubResponse = await fetch(`https://raw.githubusercontent.com/${env.GithubOwner}/${env.GithubRepo}/${env.GithubBranch}/${fileId}/${chunk}`, {
 						headers: { 'Authorization': `token ${env.GithubPAT}`, },
 					});
