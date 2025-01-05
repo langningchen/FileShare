@@ -71,14 +71,14 @@ export default {
 						const fileId = key.name.split(':')[0];
 						if (key.name.endsWith(':uploaded')) {
 							const filename = (await env.fileShare.get(`${fileId}:filename`))!;
-							const ip = (await env.fileShare.get(`${fileId}:ip`))!;
+							const ip = (await env.fileShare.get(`${fileId}:ip`));
 							const chunks = parseInt((await env.fileShare.get(`${fileId}:chunks`))!);
 							const size = parseInt((await env.fileShare.get(`${fileId}:size`))!);
-							files.push({ filename, fileId, chunks, size, admin: connectingIp === ip });
+							files.push({ filename, fileId, chunks, size, admin: !ip || connectingIp === ip });
 						} else if (key.name.endsWith(':uploading')) {
 							const filename = (await env.fileShare.get(`${fileId}:filename`))!;
-							const ip = (await env.fileShare.get(`${fileId}:ip`))!;
-							files.push({ filename, fileId, uploading: true, admin: connectingIp === ip });
+							const ip = (await env.fileShare.get(`${fileId}:ip`));
+							files.push({ filename, fileId, uploading: true, admin: !ip || connectingIp === ip });
 						}
 					}
 					console.log(files);
@@ -124,8 +124,8 @@ export default {
 							await env.fileShare.get(`${fileId}:uploading`) === null)) {
 						return new ResJson(false, 'File not found', {});
 					}
-					const ip = (await env.fileShare.get(`${fileId}:ip`))!;
-					if (connectingIp !== ip) { return new ResJson(false, 'Permission denied', {}); }
+					const ip = (await env.fileShare.get(`${fileId}:ip`));
+					if (ip && connectingIp !== ip) { return new ResJson(false, 'Permission denied', {}); }
 					const currentCommitSha = (await github.git.getRef({ owner, repo, ref: `heads/${env.GithubBranch}`, })).data.object.sha;
 					const treeSha = (await github.git.getCommit({ owner, repo, commit_sha: currentCommitSha, })).data.tree.sha;
 					const folders = (await github.git.getTree({ owner, repo, tree_sha: treeSha, })).data.tree.filter((item: any) => item.path == fileId);
