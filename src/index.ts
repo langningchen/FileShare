@@ -89,6 +89,8 @@ export default {
 				else if (path === '/start') {
 					const filename = requestBody['filename'];
 					// Check if there's an existing upload for this file
+					// Note: This performs a full KV scan which may be inefficient with many files.
+					// For production use with large file counts, consider using a filename-based index.
 					const keys = await env.fileShare.list();
 					for (const key of keys.keys) {
 						if (key.name.endsWith(':uploading')) {

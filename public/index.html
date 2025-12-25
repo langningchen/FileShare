@@ -222,7 +222,7 @@
                     "filename": upFile.name
                 });
                 const fileId = startResponse["fileId"];
-                const startChunk = startResponse["chunks"] || 0;
+                const startChunk = startResponse["chunks"] !== undefined ? startResponse["chunks"] : 0;
                 for (let i = startChunk; i < ChunkCount; i++) {
                     SetProgressBarValue(upProgress, (i + 1) / ChunkCount * 100);
                     await req("chunk", {
