@@ -4,24 +4,9 @@ compatibility_flags = [ "nodejs_compat" ]
 compatibility_date = "2023-10-02"
 assets = { directory = "./public" }
 
-[observability]
-enabled = false
-head_sampling_rate = 1
-
-[observability.logs]
-enabled = true
-head_sampling_rate = 1
-persist = true
-invocation_logs = true
-
-[observability.traces]
-enabled = false
-persist = true
-head_sampling_rate = 1
-
 [placement]
 mode = "smart"
 
 [[kv_namespaces]]
-binding = "file_share_data"
-id = "8191219ff37748b8b45b57c07296adca"
+binding = "fileShare"
+id = "b9e8166f965944fbb508abbf4beaf8c2"
