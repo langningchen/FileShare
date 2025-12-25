@@ -10,7 +10,7 @@ Share files using Cloudflare Workers and GitHub Private Repositories!
 2. [Create a new GitHub Personal Access Token](https://github.com/settings/tokens/new) with the `repo` scope
 3. [Create a private repository](https://github.com/new?name=FileShare-Data&description=Store%20data%20for%20FileShare&visibility=private) to store your files
 4. Make sure you have `npm` and `wrangler` installed and configured
-5. Create a new KV namespace by running `wrangler kv namespace create file-share-data`
+5. Create a new KV namespace by running `wrangler kv namespace create fileShare`
 6. Update file `wrangler.toml`:
 
 ```toml
