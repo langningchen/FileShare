@@ -8,5 +8,5 @@ assets = { directory = "./public" }
 mode = "smart"
 
 [[kv_namespaces]]
-binding = "fileShare"
-id = "701f794a089a437f850254d20aa36c00"
+binding = "file_share_data"
+id = "8191219ff37748b8b45b57c07296adca"
