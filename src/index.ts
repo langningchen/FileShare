@@ -78,20 +78,37 @@ export default {
 						} else if (key.name.endsWith(':uploading')) {
 							const filename = (await env.fileShare.get(`${fileId}:filename`))!;
 							const ip = (await env.fileShare.get(`${fileId}:ip`));
-							files.push({ filename, fileId, uploading: true, admin: !ip || connectingIp === ip });
+							const chunks = parseInt((await env.fileShare.get(`${fileId}:chunks`))!);
+							const size = parseInt((await env.fileShare.get(`${fileId}:size`))!);
+							files.push({ filename, fileId, chunks, size, uploading: true, admin: !ip || connectingIp === ip });
 						}
 					}
 					console.log(files);
 					return new ResJson(true, '', { files, });
 				}
 				else if (path === '/start') {
+					const filename = requestBody['filename'];
+					// Check if there's an existing upload for this file
+					const keys = await env.fileShare.list();
+					for (const key of keys.keys) {
+						if (key.name.endsWith(':uploading')) {
+							const existingFileId = key.name.split(':')[0];
+							const existingFilename = await env.fileShare.get(`${existingFileId}:filename`);
+							const existingIp = await env.fileShare.get(`${existingFileId}:ip`);
+							if (existingFilename === filename && existingIp === connectingIp) {
+								const chunks = parseInt((await env.fileShare.get(`${existingFileId}:chunks`))!);
+								return new ResJson(true, '', { fileId: existingFileId, chunks });
+							}
+						}
+					}
+					// No existing upload found, create a new one
 					const fileId = randomUUID();
 					await env.fileShare.put(`${fileId}:chunks`, `0`);
-					await env.fileShare.put(`${fileId}:filename`, requestBody['filename']);
+					await env.fileShare.put(`${fileId}:filename`, filename);
 					await env.fileShare.put(`${fileId}:size`, `0`);
 					await env.fileShare.put(`${fileId}:uploading`, `1`);
 					await env.fileShare.put(`${fileId}:ip`, connectingIp);
-					return new ResJson(true, '', { fileId, });
+					return new ResJson(true, '', { fileId, chunks: 0 });
 				}
 				else if (path === '/chunk') {
 					const fileId = requestBody['fileId'];

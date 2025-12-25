@@ -87,19 +87,26 @@
                 filenameCell.innerText = filename + (uploading ? ` (上传中)` : ``);
                 row.appendChild(filenameCell);
                 const sizeCell = document.createElement("td");
-                if (size) {
+                if (size !== undefined) {
+                    let sizeText = "";
                     if (size < 1024)
-                        sizeCell.innerText = size + "B";
+                        sizeText = size + "B";
                     else if (size < 1024 * 1024)
-                        sizeCell.innerText = (size / 1024).toFixed(2) + "KB";
+                        sizeText = (size / 1024).toFixed(2) + "KB";
                     else if (size < 1024 * 1024 * 1024)
-                        sizeCell.innerText = (size / 1024 / 1024).toFixed(2) + "MB";
+                        sizeText = (size / 1024 / 1024).toFixed(2) + "MB";
                     else
-                        sizeCell.innerText = (size / 1024 / 1024 / 1024).toFixed(2) + "GB";
+                        sizeText = (size / 1024 / 1024 / 1024).toFixed(2) + "GB";
+                    
+                    if (uploading) {
+                        sizeCell.innerText = `${sizeText} (${chunks} chunks uploaded)`;
+                    } else {
+                        sizeCell.innerText = sizeText;
+                    }
                 }
                 row.appendChild(sizeCell);
                 const opCell = document.createElement("td");
-                if (chunks) {
+                if (chunks && !uploading) {
                     const downBtn = document.createElement("button");
                     downBtn.classList.add("btn", "btn-primary", "me-2");
                     downBtn.innerText = "Download";
@@ -133,6 +140,15 @@
                         HideSpinner(downBtn);
                     });
                     opCell.appendChild(downBtn);
+                }
+                if (uploading) {
+                    const resumeBtn = document.createElement("button");
+                    resumeBtn.classList.add("btn", "btn-success", "me-2");
+                    resumeBtn.innerText = "Resume";
+                    resumeBtn.addEventListener("click", () => {
+                        alert(`To resume uploading "${filename}", please select the same file and click Upload. The upload will continue from chunk ${chunks}.`);
+                    });
+                    opCell.appendChild(resumeBtn);
                 }
                 if (admin) {
                     const delBtn = document.createElement("button");
@@ -202,10 +218,12 @@
                 const Base64Data = reader.result.split(",")[1];
                 const ChunkCount = Math.ceil(Base64Data.length / upChunkSize);
                 SetProgressBarInvalid(upProgress);
-                const fileId = (await req("start", {
+                const startResponse = await req("start", {
                     "filename": upFile.name
-                }))["fileId"];
-                for (let i = 0; i < ChunkCount; i++) {
+                });
+                const fileId = startResponse["fileId"];
+                const startChunk = startResponse["chunks"] || 0;
+                for (let i = startChunk; i < ChunkCount; i++) {
                     SetProgressBarValue(upProgress, (i + 1) / ChunkCount * 100);
                     await req("chunk", {
                         fileId,
