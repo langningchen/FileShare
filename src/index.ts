@@ -89,12 +89,12 @@ export default {
 								env.fileShare.get(`${fileId}:chunks`),
 								env.fileShare.get(`${fileId}:size`)
 							]);
-							if (filename) {
+							if (filename && chunks && size) {
 								files.push({
 									filename,
 									fileId,
-									chunks: parseInt(chunks || '0'),
-									size: parseInt(size || '0'),
+									chunks: parseInt(chunks),
+									size: parseInt(size),
 									uploading: status.uploading || false,
 									admin: !ip || connectingIp === ip
 								});
@@ -138,10 +138,12 @@ export default {
 						env.fileShare.get(`${fileId}:chunks`),
 						env.fileShare.get(`${fileId}:size`)
 					]);
-					if (uploadingStatus === null) { return new ResJson(false, 'File not found', {}); }
+					if (uploadingStatus === null || !chunksStr || !sizeStr) { 
+						return new ResJson(false, 'File not found', {}); 
+					}
 					
-					const chunkId = parseInt(chunksStr!);
-					const size = parseInt(sizeStr!);
+					const chunkId = parseInt(chunksStr);
+					const size = parseInt(sizeStr);
 					const content = requestBody['content'];
 					const githubResponse = await github.repos.createOrUpdateFileContents({
 						owner, repo,

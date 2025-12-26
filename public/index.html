@@ -228,7 +228,7 @@
                     SetProgressBarValue(upProgress, (i + 1) / chunkCount * 100);
                     await req("chunk", {
                         fileId,
-                        content: base64Data.substr(i * upChunkSize, upChunkSize)
+                        content: base64Data.slice(i * upChunkSize, (i + 1) * upChunkSize)
                     });
                 }
                 
