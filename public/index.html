@@ -147,7 +147,7 @@
                     resumeBtn.classList.add("btn", "btn-success", "me-2");
                     resumeBtn.innerText = "Resume";
                     resumeBtn.addEventListener("click", () => {
-                        alert(`To resume uploading "${filename}", please select the same file and click Upload. The upload will continue from chunk ${chunks}.`);
+                        alert(`To resume uploading "${filename}", please select the same file and click Upload. The upload will resume at chunk ${chunks} (${chunks} chunks already uploaded).`);
                     });
                     opCell.appendChild(resumeBtn);
                 }
@@ -222,9 +222,15 @@
                 const chunkCount = Math.ceil(base64Data.length / upChunkSize);
                 
                 SetProgressBarInvalid(upProgress);
-                const { fileId, chunks = 0 } = await req("start", { filename: upFile.name });
+                const response = await req("start", { filename: upFile.name });
+                const fileId = response.fileId;
+                let startChunk = response.chunks;
+                if (startChunk === undefined) {
+                    console.warn('Failed to get resume position, starting from beginning');
+                    startChunk = 0;
+                }
                 
-                for (let i = chunks; i < chunkCount; i++) {
+                for (let i = startChunk; i < chunkCount; i++) {
                     SetProgressBarValue(upProgress, (i + 1) / chunkCount * 100);
                     await req("chunk", {
                         fileId,

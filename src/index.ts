@@ -74,22 +74,26 @@ export default {
 						const fileId = key.name.split(':')[0];
 						fileIds.add(fileId);
 						if (key.name.endsWith(':uploaded')) {
-							fileData.set(fileId, { uploaded: true });
+							const existing = fileData.get(fileId);
+							fileData.set(fileId, { uploaded: true, uploading: existing?.uploading });
 						} else if (key.name.endsWith(':uploading')) {
-							fileData.set(fileId, { uploading: true });
+							const existing = fileData.get(fileId);
+							if (!existing?.uploaded) {
+								fileData.set(fileId, { uploading: true });
+							}
 						}
 					}
 					
 					for (const fileId of fileIds) {
 						const status = fileData.get(fileId);
-						if (status?.uploaded || status?.uploading) {
+						if (status) {
 							const [filename, ip, chunks, size] = await Promise.all([
 								env.fileShare.get(`${fileId}:filename`),
 								env.fileShare.get(`${fileId}:ip`),
 								env.fileShare.get(`${fileId}:chunks`),
 								env.fileShare.get(`${fileId}:size`)
 							]);
-							if (filename && chunks && size) {
+							if (filename && chunks !== null && size !== null) {
 								files.push({
 									filename,
 									fileId,
@@ -105,6 +109,9 @@ export default {
 				}
 				else if (path === '/start') {
 					const filename = requestBody['filename'];
+					if (!filename) {
+						return new ResJson(false, 'Filename is required', {});
+					}
 					const keys = await env.fileShare.list();
 					
 					for (const key of keys.keys) {
@@ -115,7 +122,11 @@ export default {
 								env.fileShare.get(`${existingFileId}:ip`)
 							]);
 							if (existingFilename === filename && existingIp === connectingIp) {
-								const chunks = parseInt((await env.fileShare.get(`${existingFileId}:chunks`))!);
+								const chunksValue = await env.fileShare.get(`${existingFileId}:chunks`);
+								if (!chunksValue) {
+									continue;
+								}
+								const chunks = parseInt(chunksValue);
 								return new ResJson(true, '', { fileId: existingFileId, chunks });
 							}
 						}
