@@ -67,56 +67,81 @@ export default {
 				if (path === '/list') {
 					const files: File[] = [];
 					const keys = await env.fileShare.list();
+					const fileIds = new Set<string>();
+					const fileData = new Map<string, { uploaded?: boolean; uploading?: boolean }>();
+					
 					for (const key of keys.keys) {
 						const fileId = key.name.split(':')[0];
+						fileIds.add(fileId);
 						if (key.name.endsWith(':uploaded')) {
-							const filename = (await env.fileShare.get(`${fileId}:filename`))!;
-							const ip = (await env.fileShare.get(`${fileId}:ip`));
-							const chunks = parseInt((await env.fileShare.get(`${fileId}:chunks`))!);
-							const size = parseInt((await env.fileShare.get(`${fileId}:size`))!);
-							files.push({ filename, fileId, chunks, size, admin: !ip || connectingIp === ip });
+							fileData.set(fileId, { uploaded: true });
 						} else if (key.name.endsWith(':uploading')) {
-							const filename = (await env.fileShare.get(`${fileId}:filename`))!;
-							const ip = (await env.fileShare.get(`${fileId}:ip`));
-							const chunks = parseInt((await env.fileShare.get(`${fileId}:chunks`))!);
-							const size = parseInt((await env.fileShare.get(`${fileId}:size`))!);
-							files.push({ filename, fileId, chunks, size, uploading: true, admin: !ip || connectingIp === ip });
+							fileData.set(fileId, { uploading: true });
 						}
 					}
-					console.log(files);
-					return new ResJson(true, '', { files, });
+					
+					for (const fileId of fileIds) {
+						const status = fileData.get(fileId);
+						if (status?.uploaded || status?.uploading) {
+							const [filename, ip, chunks, size] = await Promise.all([
+								env.fileShare.get(`${fileId}:filename`),
+								env.fileShare.get(`${fileId}:ip`),
+								env.fileShare.get(`${fileId}:chunks`),
+								env.fileShare.get(`${fileId}:size`)
+							]);
+							if (filename) {
+								files.push({
+									filename,
+									fileId,
+									chunks: parseInt(chunks || '0'),
+									size: parseInt(size || '0'),
+									uploading: status.uploading || false,
+									admin: !ip || connectingIp === ip
+								});
+							}
+						}
+					}
+					return new ResJson(true, '', { files });
 				}
 				else if (path === '/start') {
 					const filename = requestBody['filename'];
-					// Check if there's an existing upload for this file
-					// Note: This performs a full KV scan which may be inefficient with many files.
-					// For production use with large file counts, consider using a filename-based index.
 					const keys = await env.fileShare.list();
+					
 					for (const key of keys.keys) {
 						if (key.name.endsWith(':uploading')) {
 							const existingFileId = key.name.split(':')[0];
-							const existingFilename = await env.fileShare.get(`${existingFileId}:filename`);
-							const existingIp = await env.fileShare.get(`${existingFileId}:ip`);
+							const [existingFilename, existingIp] = await Promise.all([
+								env.fileShare.get(`${existingFileId}:filename`),
+								env.fileShare.get(`${existingFileId}:ip`)
+							]);
 							if (existingFilename === filename && existingIp === connectingIp) {
 								const chunks = parseInt((await env.fileShare.get(`${existingFileId}:chunks`))!);
 								return new ResJson(true, '', { fileId: existingFileId, chunks });
 							}
 						}
 					}
-					// No existing upload found, create a new one
+					
 					const fileId = randomUUID();
-					await env.fileShare.put(`${fileId}:chunks`, `0`);
-					await env.fileShare.put(`${fileId}:filename`, filename);
-					await env.fileShare.put(`${fileId}:size`, `0`);
-					await env.fileShare.put(`${fileId}:uploading`, `1`);
-					await env.fileShare.put(`${fileId}:ip`, connectingIp);
+					await Promise.all([
+						env.fileShare.put(`${fileId}:chunks`, '0'),
+						env.fileShare.put(`${fileId}:filename`, filename),
+						env.fileShare.put(`${fileId}:size`, '0'),
+						env.fileShare.put(`${fileId}:uploading`, '1'),
+						env.fileShare.put(`${fileId}:ip`, connectingIp)
+					]);
 					return new ResJson(true, '', { fileId, chunks: 0 });
 				}
 				else if (path === '/chunk') {
 					const fileId = requestBody['fileId'];
-					if (await env.fileShare.get(`${fileId}:uploading`) === null) { return new ResJson(false, 'File not found', {}); }
-					const chunkId = parseInt((await env.fileShare.get(`${fileId}:chunks`))!);
-					const size = parseInt((await env.fileShare.get(`${fileId}:size`))!);
+					const [uploadingStatus, chunksStr, sizeStr] = await Promise.all([
+						env.fileShare.get(`${fileId}:uploading`),
+						env.fileShare.get(`${fileId}:chunks`),
+						env.fileShare.get(`${fileId}:size`)
+					]);
+					if (uploadingStatus === null) { return new ResJson(false, 'File not found', {}); }
+					
+					const chunkId = parseInt(chunksStr!);
+					const size = parseInt(sizeStr!);
 					const content = requestBody['content'];
 					const githubResponse = await github.repos.createOrUpdateFileContents({
 						owner, repo,
@@ -125,8 +150,11 @@ export default {
 						content: content,
 					});
 					if (!githubResponse['data']['content']) { return new ResJson(false, githubResponse['data']['message'], {}); }
-					await env.fileShare.put(`${fileId}:chunks`, (chunkId + 1).toString());
-					await env.fileShare.put(`${fileId}:size`, (size + content.length).toString());
+					
+					await Promise.all([
+						env.fileShare.put(`${fileId}:chunks`, (chunkId + 1).toString()),
+						env.fileShare.put(`${fileId}:size`, (size + content.length).toString())
+					]);
 					return new ResJson(true, '', {});
 				}
 				else if (path === '/end') {
@@ -138,13 +166,16 @@ export default {
 				}
 				else if (path === '/delete') {
 					const fileId = requestBody['fileId'];
-					if (!fileId ||
-						((await env.fileShare.get(`${fileId}:uploaded`)) === null &&
-							await env.fileShare.get(`${fileId}:uploading`) === null)) {
-						return new ResJson(false, 'File not found', {});
-					}
-					const ip = (await env.fileShare.get(`${fileId}:ip`));
+					if (!fileId) { return new ResJson(false, 'File not found', {}); }
+					
+					const [uploaded, uploading, ip] = await Promise.all([
+						env.fileShare.get(`${fileId}:uploaded`),
+						env.fileShare.get(`${fileId}:uploading`),
+						env.fileShare.get(`${fileId}:ip`)
+					]);
+					if (uploaded === null && uploading === null) { return new ResJson(false, 'File not found', {}); }
 					if (ip && connectingIp !== ip) { return new ResJson(false, 'Permission denied', {}); }
+					
 					const currentCommitSha = (await github.git.getRef({ owner, repo, ref: `heads/${env.GithubBranch}`, })).data.object.sha;
 					const treeSha = (await github.git.getCommit({ owner, repo, commit_sha: currentCommitSha, })).data.tree.sha;
 					const folders = (await github.git.getTree({ owner, repo, tree_sha: treeSha, })).data.tree.filter((item: any) => item.path == fileId);
@@ -162,12 +193,14 @@ export default {
 						await github.git.updateRef({ owner, repo, ref: `heads/${env.GithubBranch}`, sha: newCommitSha, });
 					}
 
-					await env.fileShare.delete(`${requestBody['fileId']}:chunks`);
-					await env.fileShare.delete(`${requestBody['fileId']}:size`);
-					await env.fileShare.delete(`${requestBody['fileId']}:filename`);
-					await env.fileShare.delete(`${requestBody['fileId']}:uploaded`);
-					await env.fileShare.delete(`${requestBody['fileId']}:uploading`);
-					await env.fileShare.delete(`${requestBody['fileId']}:ip`);
+					await Promise.all([
+						env.fileShare.delete(`${fileId}:chunks`),
+						env.fileShare.delete(`${fileId}:size`),
+						env.fileShare.delete(`${fileId}:filename`),
+						env.fileShare.delete(`${fileId}:uploaded`),
+						env.fileShare.delete(`${fileId}:uploading`),
+						env.fileShare.delete(`${fileId}:ip`)
+					]);
 					return new ResJson(true, '', {});
 				}
 				else if (path === '/download') {
