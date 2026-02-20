@@ -8,12 +8,19 @@ Share files using Cloudflare Workers and GitHub Private Repositories!
 
 - 📦 **File Storage**: Store files in GitHub private repositories
 - 🚀 **Cloudflare Workers**: Fast global edge network
-- 🎨 **Material Design UI**: Modern, clean interface with dark mode support
-- 🇨🇳 **China-Optimized**: Uses China-friendly CDN for improved access speeds
+- 🎨 **Material Design UI**: Modern React + MUI interface with dark mode support
+- 🇨🇳 **China-Optimized**: Optimized bundle size for improved access speeds
 - 📱 **Responsive**: Works seamlessly on mobile and desktop
 - 🔒 **Secure**: IP-based access control for uploaded files
 - ⚡ **Chunked Upload**: Upload large files in configurable chunks
 - 🔄 **Resume Support**: Resume interrupted uploads
+
+## Technology Stack
+
+- **Frontend**: React 19 + Material-UI (MUI) 7
+- **Build Tool**: Vite 7
+- **Backend**: Cloudflare Workers + TypeScript
+- **Storage**: GitHub API + Cloudflare KV
 
 ## Usage
 
@@ -39,10 +46,19 @@ binding = "fileShare"
 id = "..." // The ID of the kv you created, output in step 5
 ```
 
-9. Run `npm install` to install dependencies
-10. Run `wrangler deploy` to publish your project
-11. Run `wrangler secret put GithubPAT`, `wrangler secret put GithubOwner`, `wrangler secret put GithubRepo`, `wrangler secret put GithubBranch` to store your GitHub Personal Access Token, GitHub Owner, GitHub Repository and GitHub Branch respectively
-12. Your file share is now live! 🎉
+7. Run `npm install` to install dependencies
+8. Run `npm run build` to build the frontend React application
+9. Run `wrangler deploy` to publish your project (or use `npm run deploy` which builds and deploys)
+10. Run `wrangler secret put GithubPAT`, `wrangler secret put GithubOwner`, `wrangler secret put GithubRepo`, `wrangler secret put GithubBranch` to store your GitHub Personal Access Token, GitHub Owner, GitHub Repository and GitHub Branch respectively
+11. Your file share is now live! 🎉
+
+## Development
+
+- `npm run dev` - Start Vite development server for frontend
+- `npm run build` - Build the frontend for production
+- `npm run preview` - Preview the production build
+- `npm run start` - Start Cloudflare Workers local development server
+- `npm run deploy` - Build frontend and deploy to Cloudflare Workers
 
 ## License
 
