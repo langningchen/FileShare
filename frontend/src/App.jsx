@@ -70,15 +70,7 @@ function App() {
   const [deleteDialog, setDeleteDialog] = useState({ open: false, file: null });
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
-  useEffect(() => {
-    const savedChunkSize = localStorage.getItem('upChunkSize');
-    if (savedChunkSize) {
-      setChunkSize(parseInt(savedChunkSize));
-    }
-    refreshFileList();
-  }, []);
-
-  const refreshFileList = async () => {
+  const refreshFileList = React.useCallback(async () => {
     setLoading(true);
     try {
       const res = await req('list');
@@ -88,7 +80,15 @@ function App() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    const savedChunkSize = localStorage.getItem('upChunkSize');
+    if (savedChunkSize) {
+      setChunkSize(parseInt(savedChunkSize));
+    }
+    refreshFileList();
+  }, [refreshFileList]);
 
   const handleFileSelect = (event) => {
     const file = event.target.files[0];

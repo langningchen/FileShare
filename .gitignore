@@ -2,7 +2,7 @@ node_modules
 .wrangler
 .dev.vars
 worker-configuration.d.ts
-public/index-old.html
 dist
-public/assets/
-public/index.html
+public/
+!public/.gitkeep
+backup/
