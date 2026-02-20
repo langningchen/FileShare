@@ -191,12 +191,25 @@ export default {
 					
 					const currentCommitSha = (await github.git.getRef({ owner, repo, ref: `heads/${env.GithubBranch}`, })).data.object.sha;
 					const treeSha = (await github.git.getCommit({ owner, repo, commit_sha: currentCommitSha, })).data.tree.sha;
-					const folders = (await github.git.getTree({ owner, repo, tree_sha: treeSha, })).data.tree.filter((item: any) => item.path == fileId);
-					if (folders.length !== 0) {
-						const folderSha = folders[0].sha!;
-						const oldTree = (await github.git.getTree({ owner, repo, tree_sha: folderSha, })).data.tree;
-						const newTree = oldTree.map(({ path, mode, type }) => ({ path: `${fileId}/${path}`, sha: null, mode, type }));
-						const newTreeSha = (await github.git.createTree({ owner, repo, base_tree: treeSha, tree: newTree as any, })).data.sha;
+					const fullTree = (await github.git.getTree({ owner, repo, tree_sha: treeSha, recursive: 'true' })).data.tree;
+					
+					// Filter out all items that belong to the fileId folder
+					const newTree = fullTree
+						.filter((item: any) => !item.path?.startsWith(`${fileId}/`))
+						.map((item: any) => ({
+							path: item.path,
+							mode: item.mode,
+							type: item.type,
+							sha: item.sha
+						}));
+					
+					// Only create new commit if there were files to delete
+					if (newTree.length < fullTree.length) {
+						const newTreeSha = (await github.git.createTree({ 
+							owner, 
+							repo, 
+							tree: newTree as any 
+						})).data.sha;
 						const newCommitSha = (await github.git.createCommit({
 							owner, repo,
 							message: `Delete ${fileId} from ${connectingIp}`,
