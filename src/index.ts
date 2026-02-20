@@ -194,9 +194,9 @@ export default {
 					const treeSha = (await github.git.getCommit({ owner, repo, commit_sha: currentCommitSha, })).data.tree.sha;
 					const fullTree = (await github.git.getTree({ owner, repo, tree_sha: treeSha, recursive: true })).data.tree;
 					
-					// Filter out all items that belong to the fileId folder
+					// Filter out the directory entry itself and all items that belong to the fileId folder
 					const newTree = fullTree
-						.filter((item: any) => !item.path?.startsWith(`${fileId}/`))
+						.filter((item: any) => item.path !== fileId && !item.path?.startsWith(`${fileId}/`))
 						.map((item: any) => ({
 							path: item.path,
 							mode: item.mode,
