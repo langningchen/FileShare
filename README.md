@@ -4,6 +4,17 @@
 
 Share files using Cloudflare Workers and GitHub Private Repositories!
 
+## Features
+
+- 📦 **File Storage**: Store files in GitHub private repositories
+- 🚀 **Cloudflare Workers**: Fast global edge network
+- 🎨 **Material Design UI**: Modern, clean interface with dark mode support
+- 🇨🇳 **China-Optimized**: Uses China-friendly CDN for improved access speeds
+- 📱 **Responsive**: Works seamlessly on mobile and desktop
+- 🔒 **Secure**: IP-based access control for uploaded files
+- ⚡ **Chunked Upload**: Upload large files in configurable chunks
+- 🔄 **Resume Support**: Resume interrupted uploads
+
 ## Usage
 
 1. Clone this repository
