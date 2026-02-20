@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.3.1/css/bootstrap.css" rel="stylesheet">
+    <script src="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.3.1/js/bootstrap.js"></script>
+    <title>File Share</title>
+</head>
+
+<body>
+    <div class="container mt-3">
+        <h3>File Share</h3>
+        <hr>
+        <p>
+            This project is created by
+            <a href="https://github.com/langningchen">Langning Chen</a>
+            for learning and communication purposes only. It is open sourced on
+            <a href="https://github.com/langningchen/FileShare">GitHub</a>
+            and licensed under
+            <a href="https://github.com/langningchen/FileShare/blob/main/LICENSE">GPL-3.0</a>.
+        </p>
+        <div class="mb-3 input-group">
+            <input type="file" class="form-control" id="upFile">
+            <button class="btn btn-primary" id="upButton" disabled>Upload</button>
+        </div>
+        <div class="mb-3 input-group">
+            <span class="input-group-text">Upload chunk size</span>
+            <input type="number" class="form-control" id="upChunkSize">
+            <span class="input-group-text">MB</span>
+        </div>
+        <div class="progress mb-3">
+            <div class="progress-bar progress-bar-striped progress-bar-animated" id="upProgress" style="width: 0%;">
+            </div>
+        </div>
+        <hr>
+        <button class="btn btn-primary mb-3" id="refreshBtn">Refresh file list</button>
+        <div class="progress mb-3">
+            <div class="progress-bar progress-bar-striped" id="downProgress" style="width: 0%;">
+            </div>
+        </div>
+        <div class="d-flex justify-content-center">
+            <div class="spinner-border" role="status" id="spinner" style="display: none;"></div>
+        </div>
+        <table class="table table-bordered" id="fileLst">
+            <thead>
+                <tr>
+                    <th>File name</th>
+                    <th>File size</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+            </tbody>
+        </table>
+    </div>
+    </div>
+    <script>
+        const req = async (Url, body = {}) => {
+            const res = await fetch(Url, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(body),
+            });
+            if (res.headers.get("Content-Type")?.includes("application/json")) {
+                const json = await res.json();
+                if (!json.Succeeded) console.error(json.Message);
+                return json.Data;
+            }
+            return { reader: res.body.getReader(), length: parseInt(res.headers.get("Content-Length")) };
+        };
+
+        const formatSize = (size) => {
+            if (size < 1024) return size + "B";
+            if (size < 1024 * 1024) return (size / 1024).toFixed(2) + "KB";
+            if (size < 1024 * 1024 * 1024) return (size / 1024 / 1024).toFixed(2) + "MB";
+            return (size / 1024 / 1024 / 1024).toFixed(2) + "GB";
+        };
+
+        const RefreshFileList = async () => {
+            const fileLst = document.getElementById("fileLst");
+            const spinner = document.getElementById("spinner");
+            const tbody = fileLst.getElementsByTagName("tbody")[0];
+            
+            fileLst.style.display = "none";
+            spinner.style.display = "";
+            tbody.innerHTML = "";
+            
+            const res = await req("list");
+            
+            fileLst.style.display = "";
+            spinner.style.display = "none";
+            
+            res.files.forEach((file) => {
+                const { fileId, filename, size, chunks, uploading, admin } = file;
+                const row = document.createElement("tr");
+                
+                const filenameCell = document.createElement("td");
+                filenameCell.innerText = filename + (uploading ? ` (上传中)` : ``);
+                row.appendChild(filenameCell);
+                
+                const sizeCell = document.createElement("td");
+                if (size !== undefined) {
+                    const sizeText = formatSize(size);
+                    sizeCell.innerText = uploading ? `${sizeText} (${chunks} chunks uploaded)` : sizeText;
+                }
+                row.appendChild(sizeCell);
+                
+                const opCell = document.createElement("td");
+                
+                if (chunks && !uploading) {
+                    const downBtn = document.createElement("button");
+                    downBtn.classList.add("btn", "btn-primary", "me-2");
+                    downBtn.innerText = "Download";
+                    downBtn.addEventListener("click", async () => {
+                        ShowSpinner(downBtn);
+                        const downProgress = document.getElementById("downProgress");
+
+                        let fileData = new Blob;
+                        for (let chunk = 0; chunk < chunks; chunk++) {
+                            SetProgressBarValue(downProgress, chunk / chunks * 100);
+                            const { reader, length } = await req("download", { fileId, chunk });
+                            let readLength = 0;
+                            while (true) {
+                                const { done, value } = await reader.read();
+                                if (done) break;
+                                readLength += value.length;
+                                SetProgressBarValue(downProgress, (chunk + readLength / length) / chunks * 100);
+                                fileData = new Blob([fileData, value]);
+                            }
+                        }
+
+                        SetProgressBarInvalid(downProgress);
+                        const downLink = URL.createObjectURL(fileData);
+                        const downElement = document.createElement("a");
+                        downElement.href = downLink;
+                        downElement.download = filename;
+                        downElement.click();
+                        SetProgressBarUndefined(downProgress);
+                        HideSpinner(downBtn);
+                    });
+                    opCell.appendChild(downBtn);
+                }
+                
+                if (uploading) {
+                    const resumeBtn = document.createElement("button");
+                    resumeBtn.classList.add("btn", "btn-success", "me-2");
+                    resumeBtn.innerText = "Resume";
+                    resumeBtn.addEventListener("click", () => {
+                        alert(`To resume uploading "${filename}", please select the same file and click Upload. The upload will resume at chunk ${chunks} (${chunks} chunks already uploaded).`);
+                    });
+                    opCell.appendChild(resumeBtn);
+                }
+                
+                if (admin) {
+                    const delBtn = document.createElement("button");
+                    delBtn.classList.add("btn", "btn-danger");
+                    delBtn.innerText = "Delete";
+                    delBtn.addEventListener("click", async () => {
+                        ShowSpinner(delBtn);
+                        await req("delete", { fileId });
+                        HideSpinner(delBtn);
+                        row.remove();
+                    });
+                    opCell.appendChild(delBtn);
+                }
+                
+                row.appendChild(opCell);
+                tbody.appendChild(row);
+            });
+        };
+
+        const SetProgressBarUndefined = (bar) => {
+            bar.classList.remove("progress-bar-striped", "progress-bar-animated");
+            bar.style.width = "0%";
+            bar.innerText = "";
+        };
+        
+        const SetProgressBarInvalid = (bar) => {
+            bar.classList.add("progress-bar-striped", "progress-bar-animated");
+            bar.style.width = "100%";
+            bar.innerText = "";
+        };
+        
+        const SetProgressBarValue = (bar, value) => {
+            bar.classList.remove("progress-bar-striped", "progress-bar-animated");
+            bar.style.width = value + "%";
+            bar.innerText = value.toFixed(2) + "%";
+        };
+
+        const ShowSpinner = (button) => {
+            const spinner = document.createElement("span");
+            spinner.classList.add("spinner-border", "spinner-border-sm", "ms-1");
+            button.appendChild(spinner);
+            button.disabled = true;
+        };
+        
+        const HideSpinner = (button) => {
+            button.removeChild(button.lastChild);
+            button.disabled = false;
+        };
+
+        document.getElementById("upFile").addEventListener("change", () => {
+            document.getElementById("upButton").disabled = document.getElementById("upFile").files.length === 0;
+        });
+
+        document.getElementById("upChunkSize").addEventListener("blur", () => {
+            localStorage.setItem("upChunkSize", document.getElementById("upChunkSize").value);
+        });
+
+        document.getElementById("upButton").addEventListener("click", () => {
+            const upChunkSize = parseInt(localStorage.getItem("upChunkSize")) * 1024 * 1024;
+            const upButton = document.getElementById("upButton");
+            const upProgress = document.getElementById("upProgress");
+            const upFile = document.getElementById("upFile").files[0];
+            
+            ShowSpinner(upButton);
+            const reader = new FileReader();
+            reader.readAsDataURL(upFile);
+            reader.onload = async () => {
+                const base64Data = reader.result.split(",")[1];
+                const chunkCount = Math.ceil(base64Data.length / upChunkSize);
+                
+                SetProgressBarInvalid(upProgress);
+                const response = await req("start", { filename: upFile.name });
+                const fileId = response.fileId;
+                let startChunk = response.chunks;
+                if (startChunk === undefined) {
+                    console.warn('Failed to get resume position, starting from beginning');
+                    startChunk = 0;
+                }
+                
+                for (let i = startChunk; i < chunkCount; i++) {
+                    SetProgressBarValue(upProgress, (i + 1) / chunkCount * 100);
+                    await req("chunk", {
+                        fileId,
+                        content: base64Data.slice(i * upChunkSize, (i + 1) * upChunkSize)
+                    });
+                }
+                
+                SetProgressBarInvalid(upProgress);
+                await req("end", { fileId });
+                SetProgressBarUndefined(upProgress);
+                HideSpinner(upButton);
+                RefreshFileList();
+            };
+        });
+
+        document.getElementById("refreshBtn").addEventListener("click", async () => {
+            const refreshBtn = document.getElementById("refreshBtn");
+            ShowSpinner(refreshBtn);
+            await RefreshFileList();
+            HideSpinner(refreshBtn);
+        });
+
+        if (localStorage.getItem("upChunkSize") === null) {
+            localStorage.setItem("upChunkSize", "8");
+        }
+        document.getElementById("upChunkSize").value = localStorage.getItem("upChunkSize");
+        RefreshFileList();
+
+        if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.setAttribute('data-bs-theme', 'dark');
+        }
+    </script>
+</body>
+
+</html>
