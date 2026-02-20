@@ -293,6 +293,18 @@
             margin-left: 4px;
         }
 
+        .visually-hidden {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border-width: 0;
+        }
+
         @media (max-width: 768px) {
             .container {
                 padding: 16px;
@@ -438,7 +450,8 @@
 
                 <div class="input-group">
                     <span class="input-label">上传块大小</span>
-                    <input type="number" class="input-field" id="upChunkSize" min="1" max="50">
+                    <label for="upChunkSize" class="visually-hidden">上传块大小（MB）</label>
+                    <input type="number" class="input-field" id="upChunkSize" min="1" max="50" aria-label="上传块大小（MB）">
                     <span class="input-label">MB</span>
                 </div>
 
@@ -645,14 +658,15 @@
         const ShowSpinner = (button) => {
             const spinner = document.createElement("span");
             spinner.classList.add("spinner", "spinner-small");
+            spinner.setAttribute("data-spinner", "true");
             button.appendChild(spinner);
             button.disabled = true;
         };
 
         const HideSpinner = (button) => {
-            const lastChild = button.lastChild;
-            if (lastChild && lastChild.classList && lastChild.classList.contains("spinner")) {
-                button.removeChild(lastChild);
+            const spinner = button.querySelector('[data-spinner="true"]');
+            if (spinner) {
+                button.removeChild(spinner);
             }
             button.disabled = false;
         };
@@ -682,9 +696,13 @@
         });
 
         document.getElementById("upButton").addEventListener("click", async () => {
-            const upChunkSizeValue = parseInt(localStorage.getItem("upChunkSize"));
-            if (!upChunkSizeValue || upChunkSizeValue <= 0) {
-                alert('请设置有效的上传块大小');
+            const upChunkSizeValue = parseInt(document.getElementById("upChunkSize").value);
+            if (!upChunkSizeValue || upChunkSizeValue <= 0 || isNaN(upChunkSizeValue)) {
+                alert('请设置有效的上传块大小（必须大于0）');
+                return;
+            }
+            if (upChunkSizeValue > 50) {
+                alert('上传块大小不能超过50MB');
                 return;
             }
             

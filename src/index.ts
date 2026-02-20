@@ -191,7 +191,7 @@ export default {
 					
 					const currentCommitSha = (await github.git.getRef({ owner, repo, ref: `heads/${env.GithubBranch}`, })).data.object.sha;
 					const treeSha = (await github.git.getCommit({ owner, repo, commit_sha: currentCommitSha, })).data.tree.sha;
-					const fullTree = (await github.git.getTree({ owner, repo, tree_sha: treeSha, recursive: 'true' })).data.tree;
+					const fullTree = (await github.git.getTree({ owner, repo, tree_sha: treeSha, recursive: true })).data.tree;
 					
 					// Filter out all items that belong to the fileId folder
 					const newTree = fullTree
