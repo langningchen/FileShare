@@ -55,6 +55,8 @@ export default {
 				if (!env.GithubPAT || !env.GithubOwner || !env.GithubRepo || !env.GithubBranch) {
 					return new ResJson(false, 'Please set the environment variables', {});
 				}
+				if (req.method === 'GET') { return env.ASSETS.fetch(request); }
+				if (req.method !== 'POST') { return new ResJson(false, 'Method not allowed', {}); }
 
 				const owner = env.GithubOwner;
 				const repo = env.GithubRepo;
@@ -63,7 +65,6 @@ export default {
 				const github = new Octokit({ auth: env.GithubPAT, userAgent: 'Cloudflare Worker', });
 				let requestBody: JSON;
 				requestBody = await req.json();
-				if (req.method !== 'POST') { return new ResJson(false, 'Method not allowed', {}); }
 				if (path === '/list') {
 					const files: File[] = [];
 					const keys = await env.fileShare.list();
