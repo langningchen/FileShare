@@ -5,4 +5,4 @@ worker-configuration.d.ts
 dist
 public/
 !public/.gitkeep
-backup/
+backup/*.html
