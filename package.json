@@ -3,17 +3,28 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
-    "deploy": "wrangler deploy",
+    "build": "vite build",
+    "dev": "vite",
+    "preview": "vite preview",
+    "deploy": "npm run build && wrangler deploy",
     "start": "wrangler dev",
     "cf-typegen": "wrangler types"
   },
   "dependencies": {
-    "@octokit/rest": "^22.0.1"
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mui/icons-material": "^7.3.8",
+    "@mui/material": "^7.3.8",
+    "@octokit/rest": "^22.0.1",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260219.0",
     "@types/node": "^25.3.0",
+    "@vitejs/plugin-react": "^5.1.4",
     "typescript": "^5.9.3",
+    "vite": "^7.3.1",
     "wrangler": "^4.67.0"
   }
 }
