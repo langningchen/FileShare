@@ -55,7 +55,7 @@ export default {
 				if (!env.GithubPAT || !env.GithubOwner || !env.GithubRepo || !env.GithubBranch) {
 					return new ResJson(false, 'Please set the environment variables', {});
 				}
-				if (req.method === 'GET') { return env.ASSETS.fetch(request); }
+				if (req.method === 'GET') { return env.ASSETS.fetch(req); }
 				if (req.method !== 'POST') { return new ResJson(false, 'Method not allowed', {}); }
 
 				const owner = env.GithubOwner;
