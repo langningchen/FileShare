@@ -10,6 +10,8 @@
     "dev": "vite",
     "preview": "vite preview",
     "deploy": "npm run build && wrangler deploy",
+    "pages:build": "vite build",
+    "pages:deploy": "npm run build && wrangler versions upload",
     "start": "wrangler dev",
     "cf-typegen": "wrangler types"
   },

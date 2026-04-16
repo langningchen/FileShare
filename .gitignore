@@ -6,3 +6,4 @@ dist
 public/
 !public/.gitkeep
 backup/*.html
+package-lock.json

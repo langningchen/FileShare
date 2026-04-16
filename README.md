@@ -60,6 +60,25 @@ id = "..." // The ID of the kv you created, output in step 5
 - `npm run start` - Start Cloudflare Workers local development server
 - `npm run deploy` - Build frontend and deploy to Cloudflare Workers
 
+## Deployment
+
+### Cloudflare Workers (Manual)
+```bash
+npm install
+npm run deploy  # Builds and deploys
+```
+
+### Cloudflare Pages
+Configure your Cloudflare Pages project with:
+- **Build command**: `npm run build`
+- **Build output directory**: `public`
+- **Deploy command**: `npx wrangler versions upload`
+
+Or use the combined deploy script:
+```bash
+npm run pages:deploy
+```
+
 ## License
 
 This project is licensed under the terms of the GNU General Public License v3.0.
