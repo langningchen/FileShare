@@ -48,7 +48,10 @@ const req = async (url, body = {}) => {
     }
     return json.Data;
   }
-  return { reader: res.body.getReader(), length: parseInt(res.headers.get('Content-Length')) };
+  const contentLengthHeader = res.headers.get('Content-Length');
+  const parsedLength = contentLengthHeader != null ? parseInt(contentLengthHeader, 10) : null;
+  const length = Number.isFinite(parsedLength) ? parsedLength : null;
+  return { reader: res.body.getReader(), length };
 };
 
 const formatSize = (size) => {
@@ -163,7 +166,7 @@ function App() {
     setDownloadProgress(0);
 
     try {
-      let fileData = new Blob();
+      const chunks = [];
       for (let chunk = 0; chunk < file.chunks; chunk++) {
         setDownloadProgress((chunk / file.chunks) * 100);
         const { reader, length } = await req('download', { fileId: file.fileId, chunk });
@@ -172,12 +175,15 @@ function App() {
           const { done, value } = await reader.read();
           if (done) break;
           readLength += value.length;
-          setDownloadProgress(((chunk + readLength / length) / file.chunks) * 100);
-          fileData = new Blob([fileData, value]);
+          if (length) {
+            setDownloadProgress(((chunk + readLength / length) / file.chunks) * 100);
+          }
+          chunks.push(value);
         }
       }
 
       setDownloadProgress(100);
+      const fileData = new Blob(chunks);
       const downLink = URL.createObjectURL(fileData);
       const downElement = document.createElement('a');
       downElement.href = downLink;

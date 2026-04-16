@@ -26,6 +26,7 @@ export interface Env {
 	GithubOwner: string;
 	GithubRepo: string;
 	GithubBranch: string;
+	ASSETS: { fetch: (request: Request) => Promise<Response> };
 }
 class ResJson {
 	Succeeded: boolean;
@@ -52,10 +53,12 @@ export default {
 		try {
 			const path: string = new URL(req.url).pathname;
 			const resJson: ResJson | Response = await (async (): Promise<ResJson | Response> => {
+				// Handle GET requests (static assets) before checking GitHub env vars
+				if (req.method === 'GET') { return env.ASSETS.fetch(req); }
+				
 				if (!env.GithubPAT || !env.GithubOwner || !env.GithubRepo || !env.GithubBranch) {
 					return new ResJson(false, 'Please set the environment variables', {});
 				}
-				if (req.method === 'GET') { return env.ASSETS.fetch(req); }
 				if (req.method !== 'POST') { return new ResJson(false, 'Method not allowed', {}); }
 
 				const owner = env.GithubOwner;
@@ -192,7 +195,14 @@ export default {
 					
 					const currentCommitSha = (await github.git.getRef({ owner, repo, ref: `heads/${env.GithubBranch}`, })).data.object.sha;
 					const treeSha = (await github.git.getCommit({ owner, repo, commit_sha: currentCommitSha, })).data.tree.sha;
-					const fullTree = (await github.git.getTree({ owner, repo, tree_sha: treeSha, recursive: true })).data.tree;
+					const fullTreeResponse = await github.git.getTree({ owner, repo, tree_sha: treeSha, recursive: true });
+					
+					// Check if tree response is truncated
+					if (fullTreeResponse.data.truncated) {
+						return new ResJson(false, 'Repository tree is too large to process delete operation safely', {});
+					}
+					
+					const fullTree = fullTreeResponse.data.tree;
 					
 					// Filter out the directory entry itself and all items that belong to the fileId folder
 					const newTree = fullTree
