@@ -11,9 +11,9 @@
     "@octokit/rest": "^22.0.1"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20260219.0",
-    "@types/node": "^25.3.0",
-    "typescript": "^5.9.3",
-    "wrangler": "^4.67.0"
+    "@cloudflare/workers-types": "^5.20260727.1",
+    "@types/node": "^26.1.1",
+    "typescript": "^7.0.2",
+    "wrangler": "^4.114.0"
   }
 }
